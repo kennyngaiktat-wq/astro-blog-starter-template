@@ -23,6 +23,10 @@ export interface Settings {
 	pickup_enabled: string;
 	announcement_th: string;
 	announcement_en: string;
+	intl_enabled: string;
+	intl_zones: string;
+	refund_policy_th: string;
+	refund_policy_en: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -37,18 +41,23 @@ export const DEFAULT_SETTINGS: Settings = {
 	map_lat: "13.6206393",
 	map_lng: "100.7561232",
 	map_link: "https://maps.app.goo.gl/kgt8eHBeXLc6NZos9",
-	line_url: "",
+	line_url: "https://line.me/ti/p/t4Mmtdefip",
 	shopee_url: "",
 	lazada_url: "",
 	wongnai_url:
 		"https://www.wongnai.com/businesses/3721373KE-%E0%B8%A3%E0%B9%89%E0%B8%B2%E0%B8%99%E0%B8%A2%E0%B8%B2%E0%B8%9A%E0%B8%B4%E0%B9%8A%E0%B8%81%E0%B8%9F%E0%B8%B2%E0%B8%A3%E0%B9%8C%E0%B8%A1%E0%B9%88%E0%B8%B2-big-pharma-%E5%A4%A7%E8%8D%AF%E6%88%BF",
-	facebook_url: "",
+	facebook_url:
+		"https://www.facebook.com/p/%E0%B8%A3%E0%B9%89%E0%B8%B2%E0%B8%99%E0%B8%A2%E0%B8%B2%E0%B8%9A%E0%B8%B4%E0%B9%8A%E0%B8%81%E0%B8%9F%E0%B8%B2%E0%B8%A3%E0%B9%8C%E0%B8%A1%E0%B9%88%E0%B8%B2-BIG-Pharma-%E5%A4%A7%E8%8D%AF%E5%BA%97-61560575966274/",
 	member_discount_pct: "5",
 	shipping_fee: "50",
 	free_shipping_min: "0",
 	pickup_enabled: "1",
 	announcement_th: "",
 	announcement_en: "",
+	intl_enabled: "0",
+	intl_zones: "",
+	refund_policy_th: "",
+	refund_policy_en: "",
 };
 
 export const SETTING_KEYS = Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[];
@@ -61,7 +70,7 @@ export async function loadSettings(db: D1Database): Promise<Settings> {
 	const value = { ...DEFAULT_SETTINGS };
 	for (const r of rows) {
 		if (!(r.key in value)) continue;
-		const canBeBlank = r.key.endsWith("_url") || r.key.startsWith("announcement") || r.key === "email";
+		const canBeBlank = r.key.endsWith("_url") || r.key.startsWith("announcement") || r.key.startsWith("refund_policy") || ["email", "intl_zones"].includes(r.key);
 		if ((r.value ?? "") === "" && !canBeBlank) continue; // keep the default for required shop details
 		(value as Record<string, string>)[r.key] = r.value ?? "";
 	}

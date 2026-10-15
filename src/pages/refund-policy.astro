@@ -1,0 +1,52 @@
+---
+import Base from "../layouts/Base.astro";
+const { lang, settings } = Astro.locals;
+const custom = lang === "th" ? settings.refund_policy_th : settings.refund_policy_en;
+const name = lang === "th" ? settings.shop_name_th : settings.shop_name_en;
+---
+
+<Base title={lang === "th" ? "นโยบายการคืนสินค้าและคืนเงิน" : "Returns & refund policy"}>
+	<div class="wrap prose">
+		<div class="page-head"><h1>{lang === "th" ? "นโยบายการคืนสินค้าและคืนเงิน" : "Returns & refund policy"}</h1></div>
+		{
+			custom ? (
+				<div class="custom">{custom}</div>
+			) : lang === "th" ? (
+				<>
+					<h2>สินค้าที่รับคืน</h2>
+					<p>หากได้รับสินค้าผิดรายการ ชำรุด หรือเสียหายระหว่างขนส่ง กรุณาแจ้ง {name} ภายใน 7 วันหลังได้รับสินค้า พร้อมรูปถ่ายสินค้าและกล่องพัสดุ ทาง LINE หรือโทร {settings.phone}</p>
+					<h2>สินค้าที่ไม่รับคืน</h2>
+					<p>เพื่อความปลอดภัยของผู้บริโภค ยา อาหารเสริม และผลิตภัณฑ์ที่เปิดใช้แล้วหรือเปิดผนึกแล้ว ไม่สามารถคืนได้ ยกเว้นกรณีสินค้าผิดรายการหรือชำรุด</p>
+					<h2>การยกเลิกคำสั่งซื้อ</h2>
+					<p>สามารถยกเลิกได้ก่อนร้านจัดส่งสินค้า โดยติดต่อร้านพร้อมเลขที่คำสั่งซื้อ</p>
+					<h2>การคืนเงิน</h2>
+					<p>เมื่อร้านยืนยันการคืนเงินแล้ว จะคืนเงินผ่านช่องทางที่ชำระเดิมภายใน 14 วันทำการ (ระยะเวลาเข้าบัญชีขึ้นอยู่กับธนาคารหรือผู้ให้บริการบัตร) ค่าจัดส่งระหว่างประเทศและภาษีนำเข้าไม่สามารถคืนได้ เว้นแต่ความผิดพลาดเกิดจากร้าน</p>
+				</>
+			) : (
+				<>
+					<h2>What we accept back</h2>
+					<p>If you receive the wrong item, or an item that is faulty or damaged in transit, tell {name} within 7 days of delivery, with photos of the item and parcel, on LINE or by phone ({settings.phone}).</p>
+					<h2>What we can't take back</h2>
+					<p>For your safety, medicines, supplements and any opened or unsealed product can't be returned, unless they were the wrong item or faulty.</p>
+					<h2>Cancelling an order</h2>
+					<p>You can cancel before we ship your order. Contact us with your order number.</p>
+					<h2>Refunds</h2>
+					<p>Once we approve a refund, we return the money to your original payment method within 14 working days (when it reaches your account depends on your bank or card issuer). International shipping fees and import duties are non-refundable unless the error was ours.</p>
+				</>
+			)
+		}
+	</div>
+</Base>
+
+<style>
+	.prose {
+		max-width: 760px;
+	}
+	.prose h2 {
+		font-size: 1.15rem;
+		margin-top: 1.6em;
+	}
+	.custom {
+		white-space: pre-line;
+	}
+</style>

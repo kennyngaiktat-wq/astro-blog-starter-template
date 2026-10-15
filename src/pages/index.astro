@@ -19,6 +19,11 @@ let featured = await all<Product>(
 	 ORDER BY featured DESC, updated_at DESC LIMIT 8`,
 );
 
+const equipment = await all<Product>(
+	db,
+	"SELECT * FROM products WHERE active = 1 AND category = 'medical_equipment' ORDER BY featured DESC, updated_at DESC LIMIT 4",
+);
+
 const needs = ["pain-fever", "cough-cold", "allergy", "digestive", "muscle-joint", "first-aid", "vitamins", "skin", "eye-care", "herbal", "kids", "test-kits"].filter(
 	(k) => TAG_LABELS[k],
 );
@@ -27,6 +32,7 @@ const marketplaces = [
 	{ name: "LINE", url: settings.line_url, cls: "mk-line" },
 	{ name: "Shopee", url: settings.shopee_url, cls: "mk-shopee" },
 	{ name: "Lazada", url: settings.lazada_url, cls: "mk-lazada" },
+	{ name: "Facebook", url: settings.facebook_url, cls: "mk-facebook" },
 	{ name: "Wongnai", url: settings.wongnai_url, cls: "mk-wongnai" },
 ].filter((m) => m.url);
 ---
@@ -59,14 +65,12 @@ const marketplaces = [
 				</ul>
 			</div>
 			<div class="hero-card" aria-hidden="true">
-				<div class="pay-row">
-					<span>PromptPay</span><span>Google Pay</span><span>{lang === "th" ? "บัตร" : "Cards"}</span>
-				</div>
+				<img src="/logo@2x.png" alt="" width="344" height="270" class="hero-logo" />
 				<div class="hero-cats">
 					{
 						CATEGORIES.map((c) => (
 							<div class="hc" style={`--c: var(--cat-${c.slug}); --cs: var(--cat-${c.slug}-soft)`}>
-								<Icon name={c.icon} size={26} />
+								<Icon name={c.icon} size={24} />
 							</div>
 						))
 					}
@@ -120,6 +124,23 @@ const marketplaces = [
 		)
 	}
 
+	{
+		equipment.length > 0 && (
+			<section class="wrap section">
+				<div class="sec-head">
+					<h2>{lang === "th" ? "อุปกรณ์การแพทย์ รถเข็น เตียงผู้ป่วย" : "Wheelchairs, hospital beds & equipment"}</h2>
+					<a href="/products?category=medical_equipment">{t(lang, "viewAll")} →</a>
+				</div>
+				<p class="muted">{t(lang, "enquiryNote")}</p>
+				<div class="grid-products">
+					{equipment.map((p) => (
+						<ProductCard product={p} />
+					))}
+				</div>
+			</section>
+		)
+	}
+
 	<section class="wrap section">
 		<div class="consult-band">
 			<div>
@@ -133,7 +154,7 @@ const marketplaces = [
 				</p>
 			</div>
 			<div class="consult-actions">
-				{settings.line_url && <a class="btn btn-line" href={settings.line_url} target="_blank" rel="noopener"><Icon name="chat" size={18} /> {t(lang, "chatLine")}</a>}
+				{settings.line_url && <a class="btn btn-line" href={settings.line_url} target="_blank" rel="noopener"><img src="/social/line-white.svg" alt="" width="18" height="18" /> {t(lang, "chatLine")}</a>}
 				<a class="btn btn-ghost" href={`tel:${settings.phone.replace(/[^0-9+]/g, "")}`}><Icon name="phone" size={18} /> {settings.phone}</a>
 				<a class="btn btn-ghost" href="/products?category=other_medication">{lang === "th" ? "ดูรายการยา" : "Browse medicines"}</a>
 			</div>
@@ -224,19 +245,12 @@ const marketplaces = [
 		padding: 22px;
 		box-shadow: var(--shadow);
 	}
-	.pay-row {
-		display: flex;
-		gap: 8px;
-		flex-wrap: wrap;
-		margin-bottom: 18px;
-	}
-	.pay-row span {
-		font-size: 0.8rem;
-		font-weight: 600;
-		border: 1px solid var(--line);
-		border-radius: 8px;
-		padding: 4px 10px;
-		color: var(--ink-2);
+	.hero-logo {
+		width: 100%;
+		max-width: 300px;
+		height: auto;
+		margin: 0 auto 18px;
+		border-radius: 12px;
 	}
 	.hero-cats {
 		display: grid;
@@ -382,6 +396,9 @@ const marketplaces = [
 	}
 	.mk-lazada {
 		background: #0f146d;
+	}
+	.mk-facebook {
+		background: #0866ff;
 	}
 	.mk-wongnai {
 		background: #1c1c1c;

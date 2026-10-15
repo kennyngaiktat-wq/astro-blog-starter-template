@@ -24,6 +24,10 @@ const HEADER_MAP: Record<string, string> = {
 	tags: "tags",
 	description: "description",
 	image_url: "image_url",
+	manufacturer: "manufacturer",
+	description_en: "description_en",
+	weight_g: "weight_g",
+	intl_ok: "intl_ok",
 	"ประเภทสินค้า": "pos_type",
 };
 
@@ -114,7 +118,14 @@ export async function importProducts(db: D1Database, text: string, opts: { creat
 		if ("featured" in rec && rec.featured !== "") upd.featured = yes(rec.featured) ? 1 : 0;
 		if ("tags" in rec) upd.tags = normaliseTags(rec.tags);
 		if ("description" in rec) upd.description = rec.description || null;
-		if ("image_url" in rec) upd.image_url = rec.image_url || null;
+		if ("image_url" in rec && rec.image_url !== "") upd.image_url = rec.image_url;
+		if ("manufacturer" in rec) upd.manufacturer = rec.manufacturer || null;
+		if ("description_en" in rec) upd.description_en = rec.description_en || null;
+		if ("weight_g" in rec && rec.weight_g !== "") {
+			const w = Math.floor(Number(rec.weight_g));
+			if (Number.isFinite(w) && w >= 0) upd.weight_g = w || null;
+		}
+		if ("intl_ok" in rec) upd.intl_ok = rec.intl_ok === "" ? null : yes(rec.intl_ok) ? 1 : 0;
 
 		const cur = bySku.get(sku);
 		if (cur) {
@@ -145,6 +156,10 @@ export async function importProducts(db: D1Database, text: string, opts: { creat
 				tags: upd.tags ?? "",
 				description: upd.description ?? null,
 				image_url: upd.image_url ?? null,
+				manufacturer: upd.manufacturer ?? null,
+				description_en: upd.description_en ?? null,
+				weight_g: upd.weight_g ?? null,
+				intl_ok: upd.intl_ok ?? null,
 			};
 			const keys = Object.keys(row);
 			stmts.push(db.prepare(`INSERT INTO products (${keys.join(",")}) VALUES (${keys.map(() => "?").join(",")})`).bind(...Object.values(row)));

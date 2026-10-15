@@ -35,21 +35,11 @@ if (Astro.request.method === "POST") {
 		featured: fd.get("featured") === "on" ? 1 : 0,
 		tags: normaliseTags(str(fd, "tags", 500)),
 		description: String(fd.get("description") ?? "").trim().slice(0, 4000),
-		image_url: str(fd, "image_url", 500),
+		description_en: String(fd.get("description_en") ?? "").trim().slice(0, 4000),
+		manufacturer: str(fd, "manufacturer", 200),
+		weight_g: Math.floor(Number(str(fd, "weight_g", 8))) || 0,
+		intl_ok: fd.get("intl_ok") === "yes" ? 1 : fd.get("intl_ok") === "no" ? 0 : null,
 	};
-
-	const file = fd.get("image");
-	if (file instanceof File && file.size > 0) {
-		if (!env.IMAGES) error = "Image upload needs an R2 bucket bound as IMAGES (see README). You can paste an image link instead.";
-		else if (!/^image\/(png|jpe?g|webp|gif)$/.test(file.type) || file.size > 3_000_000) error = "Upload a PNG, JPG or WebP under 3 MB.";
-		else {
-			const ext = file.type.split("/")[1].replace("jpeg", "jpg");
-			const key = `products/${v.sku.replace(/[^A-Za-z0-9_-]/g, "_")}-${Date.now()}.${ext}`;
-			await env.IMAGES.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: file.type, cacheControl: "public, max-age=31536000, immutable" } });
-			v.image_url = `/img/${key}`;
-		}
-	}
-	if (fd.get("remove_image") === "on") v.image_url = "";
 
 	if (!error) {
 		if (!v.sku || !v.name) error = "SKU and name are required.";
@@ -65,16 +55,16 @@ if (Astro.request.method === "POST") {
 		if (isNew) {
 			const row = await db
 				.prepare(
-					`INSERT INTO products (sku, barcode, name, name_en, unit, price_satang, stock, category, consult_required, active, featured, tags, description, image_url)
-					 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
+					`INSERT INTO products (sku, barcode, name, name_en, unit, price_satang, stock, category, consult_required, active, featured, tags, description, description_en, manufacturer, weight_g, intl_ok)
+					 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
 				)
-				.bind(v.sku, v.barcode || null, v.name, v.name_en || null, v.unit || null, v.price_satang, stock, v.category, v.consult_required, v.active, v.featured, v.tags, v.description || null, v.image_url || null)
+				.bind(v.sku, v.barcode || null, v.name, v.name_en || null, v.unit || null, v.price_satang, stock, v.category, v.consult_required, v.active, v.featured, v.tags, v.description || null, v.description_en || null, v.manufacturer || null, v.weight_g || null, v.intl_ok)
 				.first<{ id: number }>();
 			return Astro.redirect(`/admin/products/${row!.id}?saved=1`);
 		}
 		await run(
 			db,
-			`UPDATE products SET sku=?, barcode=?, name=?, name_en=?, unit=?, price_satang=?, stock=?, category=?, consult_required=?, active=?, featured=?, tags=?, description=?, image_url=?, updated_at=datetime('now') WHERE id=?`,
+			`UPDATE products SET sku=?, barcode=?, name=?, name_en=?, unit=?, price_satang=?, stock=?, category=?, consult_required=?, active=?, featured=?, tags=?, description=?, description_en=?, manufacturer=?, weight_g=?, intl_ok=?, updated_at=datetime('now') WHERE id=?`,
 			v.sku,
 			v.barcode || null,
 			v.name,
@@ -88,7 +78,10 @@ if (Astro.request.method === "POST") {
 			v.featured,
 			v.tags,
 			v.description || null,
-			v.image_url || null,
+			v.description_en || null,
+			v.manufacturer || null,
+			v.weight_g || null,
+			v.intl_ok,
 			p.id,
 		);
 		return Astro.redirect(`/admin/products/${p.id}?saved=1`);
@@ -102,7 +95,7 @@ const tags = await allTags(db, true);
 	<p><a href="/admin/products">← All products</a>{!isNew && p.active ? <> · <a href={`/products/${encodeURIComponent(p.sku ?? "")}`} target="_blank">View on site ↗</a></> : null}</p>
 	{msg && <div class="alert alert-ok">{msg}</div>}
 	{error && <div class="alert alert-error">{error}</div>}
-	<form method="post" enctype="multipart/form-data" class="edit">
+	<form method="post" class="edit">
 		<div class="card">
 			<div class="grid-2">
 				<div class="field"><label for="sku">SKU (product code) *</label><input id="sku" name="sku" required value={p.sku} /></div>
@@ -123,7 +116,20 @@ const tags = await allTags(db, true);
 			</div>
 			<div class="field"><label for="tags">Tags (comma separated)</label><input id="tags" name="tags" value={p.tags ?? ""} list="taglist" /><datalist id="taglist">{tags.map((tg) => <option value={tg.tag} />)}</datalist>
 				<p class="tiny muted">Existing tags: {tags.map((tg) => tg.tag).join(", ")}</p></div>
-			<div class="field"><label for="description">Description (optional)</label><textarea id="description" name="description" rows="5">{p.description ?? ""}</textarea></div>
+			<div class="field"><label for="manufacturer">Manufacturer / brand</label><input id="manufacturer" name="manufacturer" value={p.manufacturer ?? ""} /></div>
+			<div class="field"><label for="description">Description (Thai)</label><textarea id="description" name="description" rows="4">{p.description ?? ""}</textarea></div>
+			<div class="field"><label for="description_en">Description (English)</label><textarea id="description_en" name="description_en" rows="4">{p.description_en ?? ""}</textarea></div>
+			<div class="grid-2">
+				<div class="field"><label for="weight_g">Shipping weight (grams)</label><input id="weight_g" name="weight_g" inputmode="numeric" value={p.weight_g ?? ""} placeholder="300 if blank" /></div>
+				<div class="field">
+					<label for="intl_ok">Ship overseas?</label>
+					<select id="intl_ok" name="intl_ok">
+						<option value="" selected={p.intl_ok === null || p.intl_ok === undefined}>Default (supplies &amp; supplements only)</option>
+						<option value="yes" selected={p.intl_ok === 1}>Yes</option>
+						<option value="no" selected={p.intl_ok === 0}>No — Thailand only</option>
+					</select>
+				</div>
+			</div>
 		</div>
 		<div>
 			<div class="card">
@@ -132,18 +138,61 @@ const tags = await allTags(db, true);
 				<label class="check field"><input type="checkbox" name="featured" checked={p.featured === 1} /> <span><strong>Feature on home page</strong></span></label>
 				{!isNew && <p class="small muted">Current price: {baht(p.price_satang ?? 0)} · Updated {p.updated_at}</p>}
 			</div>
-			<div class="card">
-				<strong>Image</strong>
-				{p.image_url && <img src={p.image_url} alt="" style="max-height:180px; margin:10px 0; border-radius:8px" />}
-				<div class="field"><label for="image">Upload image</label><input id="image" name="image" type="file" accept="image/png,image/jpeg,image/webp" /></div>
-				<div class="field"><label for="image_url">…or image link</label><input id="image_url" name="image_url" type="text" value={p.image_url ?? ""} placeholder="https://…" /></div>
-				{p.image_url && <label class="check small"><input type="checkbox" name="remove_image" /> Remove image</label>}
-			</div>
 			<button class="btn btn-block" type="submit" name="op" value="save">Save product</button>
 			{!isNew && <button class="btn btn-block btn-ghost del" type="submit" name="op" value="delete" formnovalidate onclick="return confirm('Delete this product permanently?')">Delete product</button>}
 		</div>
 	</form>
+	{
+		!isNew && (
+			<section class="card photo" data-photo data-pid={p.id}>
+				<strong>Photo</strong>
+				<div class="ph" data-thumb>{p.image_url ? <img src={p.image_url} alt="" /> : <span class="small muted">No photo yet</span>}</div>
+				<div class="paste" tabindex="0" data-paste>Click here, then press Ctrl+V to paste a copied image or image link</div>
+				<div class="row-actions">
+					<label class="btn btn-sm btn-ghost" style="cursor:pointer">Upload file<input type="file" accept="image/*" data-file hidden /></label>
+					<a class="btn btn-sm btn-ghost" target="_blank" rel="noopener" href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(`${p.name} ${p.manufacturer ?? ""}`.trim())}`}>Search Google Images</a>
+					{p.barcode && <button type="button" class="btn btn-sm btn-ghost" data-off>Auto-find by barcode</button>}
+					<button type="button" class="btn btn-sm btn-ghost" data-del>Remove photo</button>
+				</div>
+				<div class="small" data-status></div>
+			</section>
+		)
+	}
 </Admin>
+
+<script>
+	import { uploadImage, imageFromUrl, imageFromPaste, openFacts, deleteImage, type UploadResult } from "../../../lib/image-client";
+	const box = document.querySelector<HTMLElement>("[data-photo]");
+	if (box) {
+		const pid = Number(box.dataset.pid);
+		const status = box.querySelector<HTMLElement>("[data-status]")!;
+		const show = (r: UploadResult) => {
+			if (r.ok) {
+				box.querySelector<HTMLElement>("[data-thumb]")!.innerHTML = r.image_url ? `<img src="${r.image_url}" alt="">` : `<span class="small muted">No photo yet</span>`;
+				status.textContent = r.image_url ? "Saved ✓" : "Removed";
+			} else status.textContent = r.error ?? "Failed";
+		};
+		box.querySelector<HTMLInputElement>("[data-file]")!.addEventListener("change", async (e) => {
+			const f = (e.target as HTMLInputElement).files?.[0];
+			if (f) {
+				status.textContent = "Uploading…";
+				show(await uploadImage(f, { productId: pid }));
+			}
+		});
+		box.querySelector("[data-off]")?.addEventListener("click", async () => {
+			status.textContent = "Looking up…";
+			show(await openFacts(pid));
+		});
+		box.querySelector("[data-del]")!.addEventListener("click", async () => show(await deleteImage(pid)));
+		box.querySelector<HTMLElement>("[data-paste]")!.addEventListener("paste", async (e) => {
+			e.preventDefault();
+			const found = await imageFromPaste(e);
+			if (!found) return (status.textContent = "Nothing to paste — copy an image first.");
+			status.textContent = "Saving…";
+			show(found.blob ? await uploadImage(found.blob, { productId: pid }) : await imageFromUrl(pid, found.url!));
+		});
+	}
+</script>
 
 <style>
 	.edit {
@@ -156,6 +205,44 @@ const tags = await allTags(db, true);
 		.edit {
 			grid-template-columns: 1fr;
 		}
+	}
+	.photo {
+		max-width: 560px;
+	}
+	.ph {
+		margin: 10px 0;
+		width: 200px;
+		height: 200px;
+		border-radius: 10px;
+		background: #f1f4f3;
+		display: grid;
+		place-items: center;
+		overflow: hidden;
+	}
+	.ph :global(img) {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		background: #fff;
+	}
+	.paste {
+		border: 2px dashed #c9d6d1;
+		border-radius: 8px;
+		padding: 12px;
+		font-size: 0.85rem;
+		color: var(--muted);
+		background: #f7f9f8;
+	}
+	.paste:focus {
+		border-color: var(--brand);
+		background: var(--brand-soft);
+		outline: none;
+	}
+	.row-actions {
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
+		margin: 10px 0 6px;
 	}
 	.del {
 		margin-top: 10px;

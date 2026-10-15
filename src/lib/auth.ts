@@ -12,6 +12,7 @@ export interface SessionUser {
 	province: string | null;
 	postcode: string | null;
 	preferred_payment: string | null;
+	country: string | null;
 }
 
 const CUSTOMER_COOKIE = "bpg_session";
@@ -81,7 +82,7 @@ export async function getCustomer(db: D1Database, cookies: AstroCookies): Promis
 	if (!token) return null;
 	return first<SessionUser>(
 		db,
-		`SELECT c.id, c.email, c.name, c.phone, c.address_line, c.subdistrict, c.district, c.province, c.postcode, c.preferred_payment
+		`SELECT c.id, c.email, c.name, c.phone, c.address_line, c.subdistrict, c.district, c.province, c.postcode, c.preferred_payment, c.country
 		 FROM sessions s JOIN customers c ON c.id = s.customer_id
 		 WHERE s.token = ? AND s.kind = 'customer' AND s.expires_at > ? AND c.disabled = 0`,
 		token,

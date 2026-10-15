@@ -7,8 +7,8 @@ export const CATEGORIES = [
 		slug: "medical_equipment",
 		th: "อุปกรณ์การแพทย์",
 		en: "Medical Equipment",
-		descTh: "เครื่องวัดความดัน เทอร์โมมิเตอร์ แผ่นประคบ และอุปกรณ์ดูแลสุขภาพที่บ้าน",
-		descEn: "Blood pressure monitors, thermometers, hot/cold packs and home-care devices",
+		descTh: "รถเข็น เตียงผู้ป่วย เครื่องวัดความดัน และอุปกรณ์ดูแลผู้ป่วยที่บ้าน สั่งซื้อทาง LINE",
+		descEn: "Wheelchairs, hospital beds, blood pressure monitors and home-care devices — order on LINE",
 		icon: "equipment",
 	},
 	{
@@ -85,6 +85,9 @@ export const TAG_LABELS: Record<string, { th: string; en: string }> = {
 	"heart-bp-cholesterol": { th: "หัวใจ ความดัน ไขมัน", en: "Heart, BP & cholesterol" },
 	diabetes: { th: "เบาหวาน", en: "Diabetes" },
 	snacks: { th: "ของฝาก ขนม", en: "Snacks" },
+	mobility: { th: "รถเข็นและอุปกรณ์ช่วยเดิน", en: "Wheelchairs & mobility" },
+	beds: { th: "เตียงผู้ป่วยและที่นอน", en: "Hospital beds & mattresses" },
+	respiratory: { th: "อุปกรณ์ระบบหายใจ", en: "Respiratory equipment" },
 };
 
 export function tagLabel(tag: string, lang: Lang): string {
@@ -107,6 +110,11 @@ export interface Product {
 	tags: string;
 	description: string | null;
 	image_url: string | null;
+	description_en: string | null;
+	manufacturer: string | null;
+	weight_g: number | null;
+	intl_ok: number | null;
+	image_rev: number;
 	created_at: string;
 	updated_at: string;
 }
@@ -137,8 +145,17 @@ export function toSatang(v: string | number): number {
 	return Number.isFinite(n) ? Math.round(n * 100) : NaN;
 }
 
+/** Medical equipment (wheelchairs, beds, monitors…) is always "available — ask us on LINE". */
+export function isEnquiryItem(p: Pick<Product, "category">): boolean {
+	return p.category === "medical_equipment";
+}
+
 export function canBuyOnline(p: Pick<Product, "consult_required" | "category" | "active">): boolean {
-	return p.active === 1 && p.consult_required !== 1 && p.category !== "other_medication";
+	return p.active === 1 && p.consult_required !== 1 && p.category !== "other_medication" && !isEnquiryItem(p);
+}
+
+export function displayDescription(p: Pick<Product, "description" | "description_en">, lang: Lang): string {
+	return (lang === "en" ? p.description_en || p.description : p.description || p.description_en) ?? "";
 }
 
 export interface ProductQuery {
@@ -148,6 +165,7 @@ export interface ProductQuery {
 	consult?: "yes" | "no" | "";
 	active?: "yes" | "no" | "";
 	stock?: "in" | "out" | "";
+	image?: "yes" | "no" | "";
 	sort?: string;
 	page?: number;
 	perPage?: number;
@@ -172,12 +190,14 @@ export function buildProductWhere(q: ProductQuery) {
 	if (q.consult === "no") where.push("consult_required = 0");
 	if (q.stock === "in") where.push("stock > 0");
 	if (q.stock === "out") where.push("stock <= 0");
+	if (q.image === "yes") where.push("IFNULL(image_url,'') != ''");
+	if (q.image === "no") where.push("IFNULL(image_url,'') = ''");
 	if (q.q) {
 		const terms = q.q.trim().split(/\s+/).slice(0, 5);
 		for (const term of terms) {
-			where.push("(name LIKE ? OR IFNULL(name_en,'') LIKE ? OR sku LIKE ? OR IFNULL(barcode,'') LIKE ? OR tags LIKE ?)");
+			where.push("(name LIKE ? OR IFNULL(name_en,'') LIKE ? OR sku LIKE ? OR IFNULL(barcode,'') LIKE ? OR tags LIKE ? OR IFNULL(manufacturer,'') LIKE ?)");
 			const like = `%${term}%`;
-			params.push(like, like, like, like, like);
+			params.push(like, like, like, like, like, like);
 		}
 	}
 	return { sql: where.length ? `WHERE ${where.join(" AND ")}` : "", params };

@@ -1,6 +1,6 @@
 ---
 import Icon from "./Icon.astro";
-import { CATEGORIES, baht, canBuyOnline, displayName, type Product } from "../lib/catalog";
+import { CATEGORIES, baht, canBuyOnline, displayName, isEnquiryItem, type Product } from "../lib/catalog";
 import { t } from "../lib/i18n";
 
 interface Props {
@@ -14,6 +14,8 @@ const out = p.stock <= 0;
 const pct = Number(settings.member_discount_pct) || 0;
 const memberPrice = Math.round(p.price_satang * (1 - pct / 100));
 const href = `/products/${encodeURIComponent(p.sku)}`;
+const enquiry = isEnquiryItem(p);
+const line = settings.line_url;
 ---
 
 <article class="pcard" style={`--c: var(--cat-${p.category}); --cs: var(--cat-${p.category}-soft)`}>
@@ -31,7 +33,8 @@ const href = `/products/${encodeURIComponent(p.sku)}`;
 	</a>
 	<div class="pbody">
 		<div class="pbadges">
-			{!buyable && <span class="badge badge-consult">{t(lang, "consultBadge")}</span>}
+			{enquiry && <span class="badge">{t(lang, "available")}</span>}
+			{!buyable && !enquiry && <span class="badge badge-consult">{t(lang, "consultBadge")}</span>}
 			{buyable && out && <span class="badge badge-out">{t(lang, "outOfStock")}</span>}
 		</div>
 		<h3 class="pname"><a href={href}>{displayName(p, lang)}</a></h3>
@@ -49,8 +52,12 @@ const href = `/products/${encodeURIComponent(p.sku)}`;
 							{pct > 0 && <span class="tiny member">{t(lang, "memberPrice")} {baht(memberPrice)}</span>}
 						</div>
 					)
+				) : enquiry && p.price_satang > 0 ? (
+					<div class="pprice">
+						<strong>{baht(p.price_satang)}</strong>
+					</div>
 				) : (
-					<div class="pprice muted small">{lang === "th" ? "สอบถามที่ร้าน" : "Ask in store"}</div>
+					<div class="pprice muted small">{enquiry ? t(lang, "priceOnRequest") : lang === "th" ? "สอบถามที่ร้าน" : "Ask in store"}</div>
 				)
 			}
 			{
@@ -59,6 +66,11 @@ const href = `/products/${encodeURIComponent(p.sku)}`;
 						<Icon name="cart" size={16} />
 						<span class="add-label">{t(lang, "addToCart")}</span>
 					</button>
+				) : !buyable && line ? (
+					<a class="btn btn-sm btn-line" href={line} target="_blank" rel="noopener" aria-label={`LINE: ${p.name}`}>
+						<img src="/social/line-white.svg" alt="" width="16" height="16" />
+						<span class="add-label">{enquiry ? t(lang, "orderOnLine") : t(lang, "consultLine")}</span>
+					</a>
 				) : (
 					<a class="btn btn-sm btn-ghost" href={href}>
 						{t(lang, "details")}

@@ -2,7 +2,7 @@
 import Base from "../../layouts/Base.astro";
 import Icon from "../../components/Icon.astro";
 import ProductCard from "../../components/ProductCard.astro";
-import { CATEGORIES, baht, canBuyOnline, displayName, splitTags, tagLabel, type Product } from "../../lib/catalog";
+import { CATEGORIES, baht, canBuyOnline, displayDescription, displayName, isEnquiryItem, splitTags, tagLabel, type Product } from "../../lib/catalog";
 import { all, first } from "../../lib/db";
 import { t } from "../../lib/i18n";
 
@@ -25,9 +25,11 @@ const related = await all<Product>(
 );
 const tel = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 const name = displayName(p, lang);
+const enquiry = isEnquiryItem(p);
+const desc = displayDescription(p, lang);
 ---
 
-<Base title={name} description={p.description ?? `${name} — ${cat ? cat[lang] : ""}`}>
+<Base title={name} description={desc || `${name} — ${cat ? cat[lang] : ""}`}>
 	<div class="wrap">
 		<nav class="crumbs small">
 			<a href="/products">{t(lang, "products")}</a> /
@@ -48,11 +50,13 @@ const name = displayName(p, lang);
 			<div class="pd-info">
 				<div class="pd-badges">
 					{cat && <span class="badge" style="background: var(--cs); color: var(--c)">{cat[lang]}</span>}
-					{!buyable && <span class="badge badge-consult">{t(lang, "consultBadge")}</span>}
+					{enquiry && <span class="badge">{t(lang, "available")}</span>}
+					{!buyable && !enquiry && <span class="badge badge-consult">{t(lang, "consultBadge")}</span>}
 					{buyable && (out ? <span class="badge badge-out">{t(lang, "outOfStock")}</span> : <span class="badge">{t(lang, "inStock")}</span>)}
 				</div>
 				<h1>{name}</h1>
 				{lang === "en" && p.name_en && p.name !== p.name_en && <p class="muted">{p.name}</p>}
+				{p.manufacturer && <p class="mfr">{t(lang, "manufacturer")}: <strong>{p.manufacturer}</strong></p>}
 				<p class="muted small">
 					{t(lang, "sku")}: {p.sku}
 					{p.unit && <> · {t(lang, "unit")}: {p.unit}</>}
@@ -105,13 +109,28 @@ const name = displayName(p, lang);
 								</div>
 							)}
 						</div>
+					) : enquiry ? (
+						<div class="consult-box enquiry">
+							{p.price_satang > 0 ? <p class="pd-price"><strong>{baht(p.price_satang)}</strong></p> : <p class="pd-price"><strong>{t(lang, "priceOnRequest")}</strong></p>}
+							<p>{t(lang, "enquiryNote")}</p>
+							<div class="pd-actions">
+								{settings.line_url && (
+									<a class="btn btn-line" href={settings.line_url} target="_blank" rel="noopener">
+										<img src="/social/line-white.svg" alt="" width="18" height="18" /> {t(lang, "orderOnLine")}
+									</a>
+								)}
+								<a class="btn btn-ghost" href={tel}>
+									<Icon name="phone" size={18} /> {settings.phone}
+								</a>
+							</div>
+						</div>
 					) : (
 						<div class="consult-box">
 							<p>{t(lang, "consultNote")}</p>
 							<div class="pd-actions">
 								{settings.line_url && (
 									<a class="btn btn-line" href={settings.line_url} target="_blank" rel="noopener">
-										<Icon name="chat" size={18} /> {t(lang, "consultPharmacist")}
+										<img src="/social/line-white.svg" alt="" width="18" height="18" /> {t(lang, "consultPharmacist")}
 									</a>
 								)}
 								<a class="btn btn-ghost" href={tel}>
@@ -126,10 +145,10 @@ const name = displayName(p, lang);
 				}
 
 				{
-					p.description && (
+					desc && (
 						<div class="pd-desc">
 							<h2 class="h3">{t(lang, "details")}</h2>
-							<p>{p.description}</p>
+							<p>{desc}</p>
 						</div>
 					)
 				}
@@ -258,6 +277,14 @@ const name = displayName(p, lang);
 	}
 	.consult-box .btn-ghost {
 		background: #fff;
+	}
+	.mfr {
+		margin: 0 0 4px;
+		color: var(--ink-2);
+	}
+	.enquiry {
+		background: var(--brand-soft);
+		border-color: #bfe8d9;
 	}
 	.pd-desc {
 		margin-top: 18px;

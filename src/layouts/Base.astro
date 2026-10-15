@@ -29,11 +29,13 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 		<title>{fullTitle}</title>
 		<meta name="description" content={description} />
 		{noindex && <meta name="robots" content="noindex" />}
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" type="image/png" href="/favicon.png" />
+		<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 		<meta property="og:title" content={fullTitle} />
 		<meta property="og:description" content={description} />
 		<meta property="og:type" content="website" />
-		<meta name="theme-color" content="#0d6b55" />
+		<meta property="og:image" content={new URL("/og-logo.png", Astro.url).toString()} />
+		<meta name="theme-color" content="#4fcca4" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link
@@ -50,13 +52,7 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 					<Icon name="menu" />
 				</button>
 				<a href="/" class="logo" aria-label={shopName}>
-					<span class="logo-mark" aria-hidden="true">
-						<svg viewBox="0 0 32 32" width="34" height="34"
-							><rect width="32" height="32" rx="9" fill="#0d6b55"></rect><path
-								d="M13 8h6v5h5v6h-5v5h-6v-5H8v-6h5z"
-								fill="#fbfaf6"></path></svg
-						>
-					</span>
+					<img src="/logo.png" srcset="/logo.png 1x, /logo@2x.png 2x" width="61" height="48" alt="BP Pharmacy" class="logo-img" />
 					<span class="logo-text">
 						<strong>Big Pharma</strong>
 						<small>{lang === "th" ? "บิ๊กฟาร์ม่า กรุ๊ป" : "Group · Pharmacy"}</small>
@@ -107,6 +103,10 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 					<p class="small foot-line"><Icon name="map" size={18} /> {lang === "th" ? settings.address_th : settings.address_en}</p>
 					<p class="small foot-line"><Icon name="clock" size={18} /> {lang === "th" ? settings.hours_th : settings.hours_en}</p>
 					<p class="small foot-line"><Icon name="phone" size={18} /> <a href={telHref}>{settings.phone}</a></p>
+					<div class="socials">
+						{settings.facebook_url && <a href={settings.facebook_url} target="_blank" rel="noopener" aria-label="Facebook" class="soc"><img src="/social/facebook.svg" alt="Facebook" width="22" height="22" /></a>}
+						{settings.line_url && <a href={settings.line_url} target="_blank" rel="noopener" aria-label="LINE" class="soc"><img src="/social/line.svg" alt="LINE" width="22" height="22" /></a>}
+					</div>
 				</div>
 				<div>
 					<div class="foot-h">{t(lang, "categories")}</div>
@@ -117,17 +117,29 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 				<div>
 					<div class="foot-h">{t(lang, "alsoOn")}</div>
 					<ul class="foot-list">
-						{settings.line_url && <li><a href={settings.line_url} target="_blank" rel="noopener">LINE</a></li>}
 						{settings.shopee_url && <li><a href={settings.shopee_url} target="_blank" rel="noopener">Shopee</a></li>}
 						{settings.lazada_url && <li><a href={settings.lazada_url} target="_blank" rel="noopener">Lazada</a></li>}
-						{settings.facebook_url && <li><a href={settings.facebook_url} target="_blank" rel="noopener">Facebook</a></li>}
 						{settings.wongnai_url && <li><a href={settings.wongnai_url} target="_blank" rel="noopener">Wongnai</a></li>}
 						<li><a href="/contact">{t(lang, "contact")}</a></li>
 						<li><a href="/privacy">{t(lang, "privacy")}</a></li>
+						<li><a href="/refund-policy">{lang === "th" ? "นโยบายการคืนเงิน" : "Refund policy"}</a></li>
 					</ul>
 				</div>
 			</div>
-			<div class="wrap foot-base tiny muted">© {new Date().getFullYear()} {settings.shop_name_en}</div>
+			<div class="wrap pay-strip">
+				<span class="tiny muted">{lang === "th" ? "ช่องทางชำระเงิน" : "We accept"}</span>
+				<ul class="pay-logos">
+					<li><img src="/pay/promptpay.png" alt="PromptPay" height="22" /></li>
+					<li><img src="/pay/googlepay.svg" alt="Google Pay" height="22" /></li>
+					<li><img src="/pay/visa.svg" alt="Visa" height="22" /></li>
+					<li><img src="/pay/mastercard.svg" alt="Mastercard" height="22" /></li>
+					<li><img src="/pay/jcb.svg" alt="JCB" height="22" /></li>
+				</ul>
+			</div>
+			<div class="wrap foot-base tiny muted">
+				© {new Date().getFullYear()} {settings.shop_name_en}
+				<span class="credit">{lang === "th" ? "ภาพสินค้าบางส่วน: Open Food Facts (CC BY-SA)" : "Some product photos: Open Food Facts contributors (CC BY-SA)"}</span>
+			</div>
 		</footer>
 
 		<div class="toast" data-toast role="status" aria-live="polite"></div>
@@ -199,6 +211,11 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 				text-decoration: none;
 				color: var(--ink);
 				flex: none;
+			}
+			.logo-img {
+				height: 44px;
+				width: auto;
+				border-radius: 6px;
 			}
 			.logo-text {
 				display: flex;
@@ -397,8 +414,61 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 				flex: none;
 				margin-top: 2px;
 			}
+			.socials {
+				display: flex;
+				gap: 10px;
+				margin-top: 14px;
+			}
+			.soc {
+				width: 40px;
+				height: 40px;
+				border-radius: 50%;
+				background: #fff;
+				display: grid;
+				place-items: center;
+			}
+			.soc:hover {
+				transform: translateY(-1px);
+			}
+			.pay-strip {
+				margin-top: 28px;
+				display: flex;
+				align-items: center;
+				gap: 14px;
+				flex-wrap: wrap;
+			}
+			.pay-logos {
+				list-style: none;
+				margin: 0;
+				padding: 0;
+				display: flex;
+				gap: 8px;
+				flex-wrap: wrap;
+			}
+			.pay-logos li {
+				background: #fff;
+				border-radius: 6px;
+				height: 34px;
+				padding: 6px 10px;
+				display: grid;
+				place-items: center;
+			}
+			.pay-logos img {
+				height: 22px;
+				width: auto;
+			}
+			.credit {
+				float: right;
+			}
+			@media (max-width: 760px) {
+				.credit {
+					float: none;
+					display: block;
+					margin-top: 4px;
+				}
+			}
 			.foot-base {
-				margin-top: 32px;
+				margin-top: 20px;
 				padding-top: 16px;
 				border-top: 1px solid #23413a;
 			}

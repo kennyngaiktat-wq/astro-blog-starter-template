@@ -4,6 +4,7 @@ import { first, run } from "../../../lib/db";
 import { baht } from "../../../lib/catalog";
 import { ORDER_STATUSES, getItems, markPaid, refreshOrderPayment, type Order } from "../../../lib/orders";
 import { str } from "../../../lib/forms";
+import { countryName } from "../../../lib/shipping";
 
 const { env } = Astro.locals;
 const id = Number(Astro.params.id);
@@ -63,7 +64,7 @@ const customerLink = order.customer_id ? `/admin/customers/${order.customer_id}`
 				</p>
 				<p>
 					<strong>{order.delivery_method === "pickup" ? "Pick up in store" : "Deliver to:"}</strong><br />
-					{order.delivery_method === "delivery" && <>{order.address_line} {order.subdistrict} {order.district} {order.province} {order.postcode}</>}
+					{order.delivery_method === "delivery" && <>{order.address_line} {order.subdistrict} {order.district} {order.province} {order.postcode}, <strong>{countryName((order as any).country ?? "TH", "en")}</strong>{(order as any).shipping_zone && <> · zone {(order as any).shipping_zone}</>}</>}
 				</p>
 				{order.note && <p><strong>Customer note:</strong> {order.note}</p>}
 				<p class="muted">Created {order.created_at} · Paid {order.paid_at ?? "—"} · Payment: {order.payment_method ?? "—"} {order.charge_id && <>· Opn charge <code>{order.charge_id}</code></>}</p>

@@ -22,7 +22,7 @@ This is an Astro site that runs on **Cloudflare Workers**, with a **D1** databas
 2. **Add secrets.** Open the Worker, then **Settings → Variables and Secrets**. Add each of these as type **Secret**:
    - `ADMIN_EMAIL`: your admin login email
    - `ADMIN_PASSWORD`: a long password
-   - `OPN_PUBLIC_KEY`: `pkey_…` from the Opn dashboard
+   - `OPN_PUBLIC_KEY`: `pkey_…` from the Opn dashboard (add it as a Secret too)
    - `OPN_SECRET_KEY`: `skey_…` from the Opn dashboard
    - `GOOGLEPAY_MERCHANT_ID`: optional, needed for live Google Pay
 
@@ -41,16 +41,26 @@ After this, every push to `main` redeploys the site automatically.
   - Download the CSV, edit it in Excel, and upload it again. Only the columns in the file are changed.
   - Or upload the POS stock export. In Excel, use *Save As → CSV UTF-8*. Cost and profit columns are ignored.
 
-## Product images (optional)
+## Product photos
 
-You can paste an image link on each product. To upload images directly instead:
+Photos are stored in the database, so you don't need any extra Cloudflare service. Go to **Admin → Photos**:
 
-1. Create an R2 bucket.
-2. Add it to `wrangler.json` as the binding `IMAGES`:
+- **Bulk:** name files by SKU, barcode or POS code (`IT-0000455.jpg`, `8850007850496.jpg`, `455.jpg`) and drop them in.
+- **One by one:** click *Search Google*, copy a photo, click the product's paste box and press Ctrl+V.
+- **Auto-find:** looks up barcodes on Open Food Facts (free, CC BY-SA photos).
 
-   ```json
-   "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "big-pharma-images" }]
-   ```
+## Medical equipment
+
+Everything in the *Medical Equipment* category is shown as "Available", with an **Order on LINE** button instead of the cart. If the price is 0, it shows "Price on request".
+
+## Overseas shipping
+
+Set this up in **Admin → Settings → Overseas shipping**.
+
+1. Enter your rates per zone: first kg plus each extra kg.
+2. Tick the box to switch overseas shipping on.
+
+Weight comes from each product's *Shipping weight*. Products without one count as 300 g, plus 200 g of packaging per parcel. Medicines are Thailand-only unless you allow a product overseas.
 
 ## Local development
 

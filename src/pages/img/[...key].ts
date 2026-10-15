@@ -1,15 +1,17 @@
 import type { APIRoute } from "astro";
+import { first } from "../../lib/db";
 
-// Serves product images uploaded to the optional R2 bucket (binding: IMAGES).
+// Serves product photos stored in D1: /img/p/<productId>?v=<revision>
 export const GET: APIRoute = async ({ params, locals }) => {
-	const bucket = locals.env.IMAGES;
-	const key = params.key ?? "";
-	if (!bucket || !key.startsWith("products/")) return new Response("Not found", { status: 404 });
-	const obj = await bucket.get(key);
-	if (!obj) return new Response("Not found", { status: 404 });
-	const headers = new Headers();
-	obj.writeHttpMetadata(headers);
-	headers.set("etag", obj.httpEtag);
-	headers.set("Cache-Control", "public, max-age=31536000, immutable");
-	return new Response(obj.body, { headers });
+	const m = /^p\/(\d+)$/.exec(params.key ?? "");
+	if (!m) return new Response("Not found", { status: 404 });
+	const row = await first<{ mime: string; data: ArrayBuffer | number[] }>(locals.env.DB, "SELECT mime, data FROM product_images WHERE product_id = ?", Number(m[1]));
+	if (!row) return new Response("Not found", { status: 404 });
+	const body = row.data instanceof ArrayBuffer ? row.data : new Uint8Array(row.data as number[]);
+	return new Response(body, {
+		headers: {
+			"content-type": row.mime,
+			"cache-control": "public, max-age=31536000, immutable",
+		},
+	});
 };

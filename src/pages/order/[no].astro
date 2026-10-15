@@ -5,6 +5,7 @@ import { baht } from "../../lib/catalog";
 import { t, ORDER_STATUS_KEYS, PAYMENT_KEYS } from "../../lib/i18n";
 import { getItems, getOrderByNo, refreshOrderPayment } from "../../lib/orders";
 import { safeEqual } from "../../lib/auth";
+import { countryName } from "../../lib/shipping";
 
 const { lang, user, settings, env } = Astro.locals;
 const key = Astro.url.searchParams.get("k") ?? "";
@@ -116,7 +117,7 @@ const tel = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 				{
 					order.delivery_method === "delivery" && (
 						<p>
-							<strong>{t(lang, "shippingAddress")}:</strong> {order.name}, {order.address_line} {order.subdistrict} {order.district} {order.province} {order.postcode} · {order.phone}
+							<strong>{t(lang, "shippingAddress")}:</strong> {order.name}, {order.address_line} {order.subdistrict} {order.district} {order.province} {order.postcode} {(order as any).country && (order as any).country !== "TH" ? countryName((order as any).country, lang) : ""} · {order.phone}
 						</p>
 					)
 				}

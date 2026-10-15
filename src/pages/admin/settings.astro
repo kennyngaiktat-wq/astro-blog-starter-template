@@ -2,14 +2,33 @@
 import Admin from "../../layouts/Admin.astro";
 import { DEFAULT_SETTINGS, SETTING_KEYS, clearSettingsCache, loadSettings, type Settings } from "../../lib/settings";
 import { batchChunks } from "../../lib/db";
+import { COUNTRIES, loadZones, type Zone } from "../../lib/shipping";
 
 const { env } = Astro.locals;
 let msg = "";
 if (Astro.request.method === "POST") {
 	const fd = await Astro.request.formData();
-	const stmts = SETTING_KEYS.filter((k) => k === "pickup_enabled" || fd.get(k) !== null).map((k) => {
-		let v = String(fd.get(k) ?? "").trim().slice(0, 1000);
-		if (k === "pickup_enabled") v = fd.get(k) === "on" ? "1" : "0";
+	const checkboxes = ["pickup_enabled", "intl_enabled"];
+	// Shipping zones table
+	if (fd.get("zone_id")) {
+		const ids = fd.getAll("zone_id").map(String);
+		const zones: Zone[] = ids.map((id, i) => ({
+			id,
+			name_th: String(fd.getAll("zone_name_th")[i] ?? "").trim(),
+			name_en: String(fd.getAll("zone_name_en")[i] ?? "").trim(),
+			first_kg: Math.max(0, Number(fd.getAll("zone_first")[i]) || 0),
+			extra_kg: Math.max(0, Number(fd.getAll("zone_extra")[i]) || 0),
+			days: String(fd.getAll("zone_days")[i] ?? "").trim(),
+			countries: String(fd.getAll("zone_countries")[i] ?? "")
+				.toUpperCase()
+				.split(/[\s,]+/)
+				.filter(Boolean),
+		}));
+		fd.set("intl_zones", JSON.stringify(zones));
+	}
+	const stmts = SETTING_KEYS.filter((k) => checkboxes.includes(k) || fd.get(k) !== null).map((k) => {
+		let v = String(fd.get(k) ?? "").trim().slice(0, k === "intl_zones" ? 8000 : 4000);
+		if (checkboxes.includes(k)) v = fd.get(k) === "on" ? "1" : "0";
 		if (k.endsWith("_url") && v && !/^https?:\/\//.test(v)) v = `https://${v}`;
 		return env.DB.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(k, v);
 	});
@@ -18,6 +37,8 @@ if (Astro.request.method === "POST") {
 	msg = "Settings saved.";
 }
 const s: Settings = Astro.request.method === "POST" ? await loadSettings(env.DB) : Astro.locals.settings;
+const zones = loadZones(s);
+const usingDefaultRates = !s.intl_zones;
 
 const groups: { title: string; fields: { key: keyof Settings; label: string; hint?: string; type?: string }[] }[] = [
 	{
@@ -88,6 +109,38 @@ const groups: { title: string; fields: { key: keyof Settings; label: string; hin
 				</section>
 			))
 		}
+		<section class="card">
+			<h2 class="h3">Overseas shipping</h2>
+			<label class="check field"><input type="checkbox" name="intl_enabled" checked={s.intl_enabled === "1"} /> <span><strong>Allow orders to be delivered outside Thailand</strong><br /><span class="small muted">Customers pick their country at checkout. Medicines (OTC and other medication) stay Thailand-only unless you allow a product overseas on its edit page.</span></span></label>
+			{usingDefaultRates && <div class="alert alert-warn small">These rates are <strong>examples only</strong>. Replace them with your own quotes (for example Thailand Post EMS World at the post office or thailandpost.co.th) before switching overseas shipping on.</div>}
+			<p class="small muted">Fee = first kg + each extra kg (rounded up). Product weight comes from each product's “Shipping weight”; products without one count as 300 g, plus 200 g packaging per parcel. Countries use 2-letter codes; <code>*</code> means every other country.</p>
+			<div class="table-scroll">
+				<table class="table zones">
+					<thead><tr><th>Zone (TH)</th><th>Zone (EN)</th><th>Countries</th><th>First kg ฿</th><th>Each extra kg ฿</th><th>Days</th></tr></thead>
+					<tbody>
+						{zones.map((z) => (
+							<tr>
+								<td><input type="hidden" name="zone_id" value={z.id} /><input name="zone_name_th" value={z.name_th} /></td>
+								<td><input name="zone_name_en" value={z.name_en} /></td>
+								<td><input name="zone_countries" value={z.countries.join(", ")} class="wide" /></td>
+								<td><input name="zone_first" value={z.first_kg} inputmode="decimal" class="num" /></td>
+								<td><input name="zone_extra" value={z.extra_kg} inputmode="decimal" class="num" /></td>
+								<td><input name="zone_days" value={z.days} class="num" /></td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+			<p class="tiny muted">Country codes: {COUNTRIES.map((c) => `${c.code} ${c.en}`).join(" · ")}</p>
+		</section>
+		<section class="card">
+			<h2 class="h3">Returns &amp; refund policy (optional)</h2>
+			<p class="small muted">Leave blank to use the standard policy shown at <a href="/refund-policy" target="_blank">/refund-policy</a>. Opn Payments requires a refund policy that customers accept at checkout.</p>
+			<div class="grid-2">
+				<div class="field"><label for="refund_policy_th">Thai</label><textarea id="refund_policy_th" name="refund_policy_th" rows="8">{s.refund_policy_th}</textarea></div>
+				<div class="field"><label for="refund_policy_en">English</label><textarea id="refund_policy_en" name="refund_policy_en" rows="8">{s.refund_policy_en}</textarea></div>
+			</div>
+		</section>
 		<button class="btn">Save settings</button>
 	</form>
 	<section class="card" style="margin-top:24px">
@@ -98,3 +151,16 @@ const groups: { title: string; fields: { key: keyof Settings; label: string; hin
 		</p>
 	</section>
 </Admin>
+
+<style>
+	.zones input {
+		min-height: 34px;
+		padding: 4px 8px;
+	}
+	.zones .num {
+		width: 90px;
+	}
+	.zones .wide {
+		min-width: 260px;
+	}
+</style>

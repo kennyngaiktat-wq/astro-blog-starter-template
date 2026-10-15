@@ -14,12 +14,38 @@ export function ensureSchema(db: D1Database): Promise<void> {
 				.map((s) => s.trim())
 				.filter(Boolean);
 			await db.batch(statements.map((s) => db.prepare(s)));
+			await addMissingColumns(db);
 		})().catch((err) => {
 			schemaReady = null;
 			throw err;
 		});
 	}
 	return schemaReady;
+}
+
+// Columns added after the first release. Existing databases get them on next start-up.
+const ADDED_COLUMNS: [table: string, column: string, definition: string][] = [
+	["products", "description_en", "TEXT"],
+	["products", "manufacturer", "TEXT"],
+	["products", "weight_g", "INTEGER"],
+	["products", "intl_ok", "INTEGER"],
+	["products", "image_rev", "INTEGER NOT NULL DEFAULT 0"],
+	["customers", "country", "TEXT NOT NULL DEFAULT 'TH'"],
+	["orders", "country", "TEXT NOT NULL DEFAULT 'TH'"],
+	["orders", "shipping_zone", "TEXT"],
+];
+
+async function addMissingColumns(db: D1Database) {
+	const tables = [...new Set(ADDED_COLUMNS.map(([t]) => t))];
+	const existing = new Map<string, Set<string>>();
+	for (const t of tables) {
+		const cols = await db.prepare(`PRAGMA table_info(${t})`).all<{ name: string }>();
+		existing.set(t, new Set((cols.results ?? []).map((c) => c.name)));
+	}
+	const alters = ADDED_COLUMNS.filter(([t, c]) => !existing.get(t)!.has(c)).map(([t, c, def]) =>
+		db.prepare(`ALTER TABLE ${t} ADD COLUMN ${c} ${def}`),
+	);
+	if (alters.length) await db.batch(alters);
 }
 
 export async function all<T = Record<string, unknown>>(db: D1Database, sql: string, ...params: unknown[]): Promise<T[]> {

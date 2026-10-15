@@ -70,11 +70,12 @@ if (Astro.request.method === "POST") {
 				<button class="btn" type="submit">Import</button>
 			</form>
 			<h3 class="h3" style="margin-top:20px">Accepted columns</h3>
-			<p class="small"><code>sku, barcode, name, name_en, unit, price, stock, category, consult_required, active, featured, tags, description, image_url</code></p>
+			<p class="small"><code>sku, barcode, name, name_en, unit, price, stock, category, consult_required, active, featured, tags, manufacturer, description, description_en, weight_g, intl_ok, image_url</code></p>
 			<ul class="small">
 				<li><strong>category</strong>: <code>medical_equipment</code>, <code>medical_supplies</code>, <code>health_supplements</code>, <code>otc</code>, <code>other_medication</code></li>
 				<li><strong>consult_required / active / featured</strong>: yes or no</li>
 				<li><strong>tags</strong>: comma separated, e.g. <code>pain-fever,kids</code></li>
+				<li><strong>weight_g</strong>: shipping weight in grams (used for overseas rates); <strong>intl_ok</strong>: yes / no / blank (blank = supplies &amp; supplements may ship overseas, medicines don't)</li>
 			</ul>
 			<h3 class="h3">Updating from the POS</h3>
 			<p class="small">You can upload the POS "stock current balance" export directly: open it in Excel, choose <em>File → Save As → CSV UTF-8</em>, then import it here. Only SKU, name, unit, <strong>selling price</strong>, stock and barcode are read — cost and profit columns are ignored. New SKUs get a category from the POS type (medicines start as consultation-only).</p>

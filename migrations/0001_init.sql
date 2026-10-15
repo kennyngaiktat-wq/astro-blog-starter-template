@@ -96,3 +96,12 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT
 );
+
+-- Product photos are stored in the database (no extra Cloudflare service needed)
+CREATE TABLE IF NOT EXISTS product_images (
+  product_id INTEGER PRIMARY KEY,
+  mime TEXT NOT NULL,
+  data BLOB NOT NULL,
+  source TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

@@ -5,10 +5,10 @@
 	--line: #dfe7e3;
 	--paper: #fbfaf6;
 	--card: #ffffff;
-	--brand: #0d6b55;
-	--brand-ink: #08473a;
-	--brand-soft: #e3f2ec;
-	--mint: #c9ebdc;
+	--brand: #0b7d5e;
+	--brand-ink: #075a44;
+	--brand-soft: #e2f6ef;
+	--mint: #4fcca4;
 	--accent: #e8643c;
 	--accent-soft: #fdeae2;
 	--amber: #b7791f;
@@ -27,8 +27,8 @@
 	--cat-medical_supplies-soft: #def3f2;
 	--cat-health_supplements: #6f9a1e;
 	--cat-health_supplements-soft: #eef5dd;
-	--cat-otc: #0d6b55;
-	--cat-otc-soft: #e3f2ec;
+	--cat-otc: #0b7d5e;
+	--cat-otc-soft: #e2f6ef;
 	--cat-other_medication: #b4572e;
 	--cat-other_medication-soft: #fbe9e0;
 }
@@ -357,4 +357,9 @@ a:focus-visible {
 	align-items: center;
 	margin: 28px 0;
 	flex-wrap: wrap;
+}
+
+.h3 {
+	font-size: 1.05rem;
+	font-weight: 600;
 }

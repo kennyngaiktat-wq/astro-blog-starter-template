@@ -1,0 +1,327 @@
+---
+import Admin from "../../layouts/Admin.astro";
+import { CATEGORIES, CATEGORY_SLUGS, queryProducts, type ProductQuery } from "../../lib/catalog";
+import { first } from "../../lib/db";
+
+const { env } = Astro.locals;
+const sp = Astro.url.searchParams;
+const image = (["yes", "no"].includes(sp.get("image") ?? "no") ? (sp.get("image") ?? "no") : "") as ProductQuery["image"];
+const filters: ProductQuery = {
+	q: (sp.get("q") ?? "").trim(),
+	category: CATEGORY_SLUGS.includes(sp.get("category") as never) ? (sp.get("category") as string) : "",
+	image: sp.get("image") === "all" ? "" : image,
+	active: "yes",
+	includeInactive: true,
+	sort: "name",
+	page: Math.max(1, Number(sp.get("page")) || 1),
+	perPage: 30,
+};
+const result = await queryProducts(env.DB, filters);
+const counts = await first<{ total: number; with_img: number }>(
+	env.DB,
+	"SELECT COUNT(*) total, SUM(CASE WHEN IFNULL(image_url,'') != '' THEN 1 ELSE 0 END) with_img FROM products WHERE active = 1",
+);
+function link(over: Record<string, string | number | null>) {
+	const p = new URLSearchParams(Astro.url.search);
+	for (const [k, v] of Object.entries(over)) {
+		if (v === null || v === "") p.delete(k);
+		else p.set(k, String(v));
+	}
+	return `/admin/images?${p.toString()}`;
+}
+const googleUrl = (q: string) => `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(q)}`;
+---
+
+<Admin title="Product photos">
+	<p class="small muted">{counts?.with_img ?? 0} of {counts?.total ?? 0} products on the site have a photo.</p>
+
+	<section class="card drop" data-drop>
+		<h2 class="h3">1 · Bulk upload photos named by SKU or barcode</h2>
+		<p class="small">Name each photo with the product's <strong>SKU</strong> (e.g. <code>IT-0000455.jpg</code>), <strong>barcode</strong> (e.g. <code>8850007850496.jpg</code>) or <strong>POS code</strong> (e.g. <code>455.jpg</code>), then drop them all here at once. Photos are resized automatically.</p>
+		<label class="btn btn-ghost btn-sm" style="cursor:pointer">Choose photos <input type="file" accept="image/*" multiple data-bulk-input hidden /></label>
+		<span class="small muted">…or drag and drop files onto this box</span>
+		<div class="bulk-log small" data-bulk-log></div>
+	</section>
+
+	<section class="card">
+		<h2 class="h3">2 · Add photos one by one (fastest way to fill gaps)</h2>
+		<ol class="small steps">
+			<li>Click <strong>Search Google</strong> next to a product. Google Images opens in a new tab.</li>
+			<li>Right-click a good photo → <strong>Copy image</strong>.</li>
+			<li>Come back, click the product's grey <strong>Paste box</strong> and press <kbd>Ctrl</kbd>+<kbd>V</kbd>. Done — it saves straight away.</li>
+		</ol>
+		<p class="tiny muted">Use photos from the manufacturer or your own photos where possible. Photos from other shops may be copyrighted.</p>
+		<form method="get" class="toolbar" style="margin-top:12px">
+			<div class="field" style="flex:1; min-width:200px"><label for="q">Search</label><input id="q" type="search" name="q" value={filters.q} /></div>
+			<div class="field">
+				<label for="category">Category</label>
+				<select id="category" name="category">
+					<option value="">All</option>
+					{CATEGORIES.map((c) => <option value={c.slug} selected={filters.category === c.slug}>{c.en}</option>)}
+				</select>
+			</div>
+			<div class="field">
+				<label for="image">Show</label>
+				<select id="image" name="image">
+					<option value="no" selected={sp.get("image") !== "yes" && sp.get("image") !== "all"}>Missing a photo</option>
+					<option value="yes" selected={sp.get("image") === "yes"}>Has a photo</option>
+					<option value="all" selected={sp.get("image") === "all"}>All</option>
+				</select>
+			</div>
+			<button class="btn btn-sm">Show</button>
+			<button class="btn btn-sm btn-ghost" type="button" data-auto-all title="Looks up each barcode on Open Food Facts">Auto-find photos on this page</button>
+		</form>
+	</section>
+
+	<div class="rows" data-rows>
+		{
+			result.items.map((p) => (
+				<div class="row card" data-pid={p.id}>
+					<div class="thumb" data-thumb>{p.image_url ? <img src={p.image_url} alt="" /> : <span class="tiny muted">No photo</span>}</div>
+					<div class="info">
+						<a href={`/admin/products/${p.id}`} class="pname">{p.name}</a>
+						<div class="tiny muted">
+							{p.sku}
+							{p.barcode && <> · {p.barcode}</>}
+							{p.manufacturer && <> · {p.manufacturer}</>}
+						</div>
+						<div class="actions">
+							<a class="btn btn-sm btn-ghost" href={googleUrl(`${p.name} ${p.manufacturer ?? ""}`.trim())} target="_blank" rel="noopener">Search Google</a>
+							<div class="paste" tabindex="0" data-paste>Paste box — click, then Ctrl+V</div>
+							<label class="btn btn-sm btn-ghost" style="cursor:pointer">File<input type="file" accept="image/*" data-file hidden /></label>
+							{p.barcode && <button class="btn btn-sm btn-ghost" type="button" data-off>Auto-find</button>}
+							{p.image_url && <button class="btn btn-sm btn-ghost del" type="button" data-del>Remove</button>}
+						</div>
+						<div class="tiny status" data-status></div>
+					</div>
+				</div>
+			))
+		}
+		{result.items.length === 0 && <p class="muted">Nothing to show — every product here has a photo.</p>}
+	</div>
+
+	<nav class="pager">
+		{result.page > 1 && <a class="btn btn-ghost btn-sm" href={link({ page: result.page - 1 })}>← Prev</a>}
+		<span class="small muted">Page {result.page} of {result.pages} · {result.total} products</span>
+		{result.page < result.pages && <a class="btn btn-ghost btn-sm" href={link({ page: result.page + 1 })}>Next →</a>}
+	</nav>
+</Admin>
+
+<script>
+	import { uploadImage, imageFromUrl, imageFromPaste, openFacts, deleteImage, type UploadResult } from "../../lib/image-client";
+
+	const rows = document.querySelector<HTMLElement>("[data-rows]")!;
+	let active: HTMLElement | null = null;
+
+	function setStatus(row: HTMLElement, msg: string, ok?: boolean) {
+		const s = row.querySelector<HTMLElement>("[data-status]")!;
+		s.textContent = msg;
+		s.className = "tiny status " + (ok === true ? "ok" : ok === false ? "err" : "");
+	}
+	function done(row: HTMLElement, r: UploadResult) {
+		if (r.ok && r.image_url) {
+			row.querySelector<HTMLElement>("[data-thumb]")!.innerHTML = `<img src="${r.image_url}" alt="">`;
+			row.classList.add("saved");
+			setStatus(row, "Saved ✓", true);
+		} else if (r.ok) {
+			row.querySelector<HTMLElement>("[data-thumb]")!.innerHTML = `<span class="tiny muted">No photo</span>`;
+			setStatus(row, "Removed", true);
+		} else setStatus(row, r.error ?? "Failed", false);
+	}
+	const pidOf = (row: HTMLElement) => Number(row.dataset.pid);
+
+	rows.addEventListener("focusin", (e) => {
+		const row = (e.target as HTMLElement).closest<HTMLElement>("[data-pid]");
+		if (row) {
+			active?.classList.remove("active");
+			active = row;
+			row.classList.add("active");
+		}
+	});
+	rows.addEventListener("click", async (e) => {
+		const el = e.target as HTMLElement;
+		const row = el.closest<HTMLElement>("[data-pid]");
+		if (!row) return;
+		if (el.matches("[data-paste]")) (el as HTMLElement).focus();
+		if (el.matches("[data-off]")) {
+			setStatus(row, "Looking up barcode…");
+			done(row, await openFacts(pidOf(row)));
+		}
+		if (el.matches("[data-del]") && confirm("Remove this photo?")) done(row, await deleteImage(pidOf(row)));
+	});
+	rows.addEventListener("change", async (e) => {
+		const input = e.target as HTMLInputElement;
+		const row = input.closest<HTMLElement>("[data-pid]");
+		if (!row || !input.matches("[data-file]") || !input.files?.[0]) return;
+		setStatus(row, "Uploading…");
+		done(row, await uploadImage(input.files[0], { productId: pidOf(row) }));
+	});
+	document.addEventListener("paste", async (e) => {
+		if (!active) return;
+		const tgt = e.target as HTMLElement;
+		if (tgt.matches("input[type=search], input[name=q]")) return;
+		const found = await imageFromPaste(e as ClipboardEvent);
+		if (!found) return setStatus(active, "Nothing to paste — copy an image first (right-click → Copy image).", false);
+		e.preventDefault();
+		const row = active;
+		setStatus(row, "Saving…");
+		try {
+			done(row, found.blob ? await uploadImage(found.blob, { productId: pidOf(row) }) : await imageFromUrl(pidOf(row), found.url!));
+		} catch (err) {
+			setStatus(row, (err as Error).message, false);
+		}
+	});
+
+	// Auto-find for every row on this page that has a barcode
+	document.querySelector("[data-auto-all]")?.addEventListener("click", async (e) => {
+		const btn = e.currentTarget as HTMLButtonElement;
+		btn.disabled = true;
+		const list = [...rows.querySelectorAll<HTMLElement>("[data-pid]")].filter((r) => r.querySelector("[data-off]") && !r.classList.contains("saved"));
+		let found = 0;
+		for (const row of list) {
+			setStatus(row, "Looking up…");
+			const r = await openFacts(pidOf(row));
+			done(row, r);
+			if (r.ok) found++;
+			await new Promise((res) => setTimeout(res, 800));
+		}
+		btn.disabled = false;
+		btn.textContent = `Found ${found} of ${list.length}`;
+	});
+
+	// Bulk upload by file name
+	const drop = document.querySelector<HTMLElement>("[data-drop]")!;
+	const log = document.querySelector<HTMLElement>("[data-bulk-log]")!;
+	async function bulk(files: File[]) {
+		const imgs = files.filter((f) => f.type.startsWith("image/"));
+		let ok = 0;
+		log.innerHTML = "";
+		for (const [i, f] of imgs.entries()) {
+			const line = document.createElement("div");
+			line.textContent = `${i + 1}/${imgs.length} ${f.name} …`;
+			log.prepend(line);
+			try {
+				const r = await uploadImage(f, { filename: f.name });
+				line.textContent = r.ok ? `✓ ${f.name} → ${r.sku} ${r.name}` : `✗ ${f.name}: ${r.error}`;
+				line.className = r.ok ? "ok" : "err";
+				if (r.ok) ok++;
+			} catch (err) {
+				line.textContent = `✗ ${f.name}: ${(err as Error).message}`;
+				line.className = "err";
+			}
+		}
+		const sum = document.createElement("div");
+		sum.innerHTML = `<strong>Finished: ${ok} of ${imgs.length} photos saved.</strong>`;
+		log.prepend(sum);
+	}
+	drop.querySelector<HTMLInputElement>("[data-bulk-input]")!.addEventListener("change", (e) => bulk([...((e.target as HTMLInputElement).files ?? [])]));
+	drop.addEventListener("dragover", (e) => {
+		e.preventDefault();
+		drop.classList.add("over");
+	});
+	drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+	drop.addEventListener("drop", (e) => {
+		e.preventDefault();
+		drop.classList.remove("over");
+		bulk([...(e.dataTransfer?.files ?? [])]);
+	});
+</script>
+
+<style>
+	.drop.over {
+		outline: 3px dashed var(--brand);
+		background: var(--brand-soft);
+	}
+	.bulk-log {
+		max-height: 220px;
+		overflow: auto;
+		margin-top: 10px;
+	}
+	.steps {
+		margin: 6px 0;
+		padding-left: 20px;
+	}
+	.rows {
+		display: grid;
+		gap: 10px;
+	}
+	.row {
+		display: flex;
+		gap: 14px;
+		align-items: center;
+		padding: 12px !important;
+		margin: 0 !important;
+	}
+	.row.active {
+		outline: 2px solid var(--mint);
+	}
+	.thumb {
+		width: 88px;
+		height: 88px;
+		flex: none;
+		border-radius: 10px;
+		background: #f1f4f3;
+		display: grid;
+		place-items: center;
+		overflow: hidden;
+	}
+	.thumb :global(img) {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		background: #fff;
+	}
+	.info {
+		flex: 1;
+		min-width: 0;
+	}
+	.pname {
+		font-weight: 600;
+		color: var(--ink);
+		overflow-wrap: anywhere;
+	}
+	.actions {
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
+		align-items: center;
+		margin-top: 8px;
+	}
+	.paste {
+		border: 2px dashed #c9d6d1;
+		border-radius: 8px;
+		padding: 6px 12px;
+		font-size: 0.82rem;
+		color: var(--muted);
+		cursor: text;
+		background: #f7f9f8;
+	}
+	.paste:focus {
+		border-color: var(--brand);
+		color: var(--brand-ink);
+		background: var(--brand-soft);
+		outline: none;
+	}
+	.status {
+		margin-top: 4px;
+		min-height: 1em;
+	}
+	:global(.status.ok),
+	:global(.bulk-log .ok) {
+		color: var(--ok);
+	}
+	:global(.status.err),
+	:global(.bulk-log .err) {
+		color: var(--danger);
+	}
+	.del {
+		color: var(--danger);
+	}
+	kbd {
+		background: #eef1f0;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		padding: 0 5px;
+		font-size: 0.8em;
+	}
+</style>

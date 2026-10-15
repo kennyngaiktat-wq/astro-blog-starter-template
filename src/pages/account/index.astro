@@ -4,6 +4,7 @@ import { t, ORDER_STATUS_KEYS } from "../../lib/i18n";
 import { all, first, run } from "../../lib/db";
 import { hashPassword, verifyPassword, logoutCustomer } from "../../lib/auth";
 import { PREFERRED_PAYMENTS, str } from "../../lib/forms";
+import { COUNTRIES, COUNTRY_CODES } from "../../lib/shipping";
 import { baht } from "../../lib/catalog";
 import type { Order } from "../../lib/orders";
 
@@ -19,14 +20,15 @@ if (Astro.request.method === "POST") {
 	const action = fd.get("action");
 	if (action === "profile") {
 		const v: Record<string, string> = {};
-		for (const k of ["name", "phone", "address_line", "subdistrict", "district", "province", "postcode", "preferred_payment"]) v[k] = str(fd, k);
+		for (const k of ["name", "phone", "address_line", "subdistrict", "district", "province", "postcode", "preferred_payment", "country"]) v[k] = str(fd, k);
+		if (!COUNTRY_CODES.has(v.country)) v.country = "TH";
 		const marketing = fd.get("marketing") === "on" ? 1 : 0;
 		if (!v.name || !v.phone) error = t(lang, "required");
 		else {
 			const pay = (PREFERRED_PAYMENTS as readonly string[]).includes(v.preferred_payment) ? v.preferred_payment : "promptpay";
 			await run(
 				env.DB,
-				`UPDATE customers SET name=?, phone=?, address_line=?, subdistrict=?, district=?, province=?, postcode=?, preferred_payment=?, marketing_opt_in=?, updated_at=datetime('now') WHERE id=?`,
+				`UPDATE customers SET name=?, phone=?, address_line=?, subdistrict=?, district=?, province=?, postcode=?, preferred_payment=?, marketing_opt_in=?, country=?, updated_at=datetime('now') WHERE id=?`,
 				v.name,
 				v.phone,
 				v.address_line,
@@ -36,6 +38,7 @@ if (Astro.request.method === "POST") {
 				v.postcode,
 				pay,
 				marketing,
+				v.country,
 				user.id,
 			);
 			msg = t(lang, "saved");
@@ -87,12 +90,16 @@ const u = user!;
 						<div class="field"><label for="name">{t(lang, "name")}</label><input id="name" name="name" required value={u.name} /></div>
 						<div class="field"><label for="phone">{t(lang, "phone")}</label><input id="phone" name="phone" type="tel" required value={u.phone} /></div>
 					</div>
+					<div class="field">
+						<label for="country">{lang === "th" ? "ประเทศ" : "Country"}</label>
+						<select id="country" name="country">{COUNTRIES.map((c) => <option value={c.code} selected={(u.country || "TH") === c.code}>{c[lang]}</option>)}</select>
+					</div>
 					<div class="field"><label for="address_line">{t(lang, "addressLine")}</label><input id="address_line" name="address_line" value={u.address_line ?? ""} /></div>
 					<div class="grid-2">
 						<div class="field"><label for="subdistrict">{t(lang, "subdistrict")}</label><input id="subdistrict" name="subdistrict" value={u.subdistrict ?? ""} /></div>
 						<div class="field"><label for="district">{t(lang, "district")}</label><input id="district" name="district" value={u.district ?? ""} /></div>
 						<div class="field"><label for="province">{t(lang, "province")}</label><input id="province" name="province" value={u.province ?? ""} /></div>
-						<div class="field"><label for="postcode">{t(lang, "postcode")}</label><input id="postcode" name="postcode" maxlength="5" value={u.postcode ?? ""} /></div>
+						<div class="field"><label for="postcode">{t(lang, "postcode")}</label><input id="postcode" name="postcode" maxlength="12" value={u.postcode ?? ""} /></div>
 					</div>
 					<div class="field">
 						<label for="preferred_payment">{t(lang, "preferredPayment")}</label>

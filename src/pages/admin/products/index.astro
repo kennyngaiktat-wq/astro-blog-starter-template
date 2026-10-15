@@ -95,6 +95,15 @@ if (Astro.request.method === "POST") {
 					case "hide":
 						upd("active=0", p.id);
 						break;
+					case "intl_on":
+						upd("intl_ok=1", p.id);
+						break;
+					case "intl_off":
+						upd("intl_ok=0", p.id);
+						break;
+					case "intl_default":
+						upd("intl_ok=NULL", p.id);
+						break;
 					case "feature":
 						upd("featured=1", p.id);
 						break;
@@ -221,6 +230,9 @@ function link(over: Record<string, string | number | null>) {
 				<option value="consult_off">Allow online purchase</option>
 				<option value="show">Show on website</option>
 				<option value="hide">Hide from website</option>
+				<option value="intl_on">Allow overseas shipping</option>
+				<option value="intl_off">Thailand only</option>
+				<option value="intl_default">Overseas: back to default</option>
 				<option value="feature">Feature on home page</option>
 				<option value="unfeature">Remove from featured</option>
 				<option value="delete">Delete permanently</option>

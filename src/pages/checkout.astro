@@ -1,12 +1,15 @@
 ---
 import Base from "../layouts/Base.astro";
 import { t } from "../lib/i18n";
+import { COUNTRIES } from "../lib/shipping";
 
 const { lang, user, settings, env } = Astro.locals;
 const pct = Number(settings.member_discount_pct) || 0;
 const pickup = settings.pickup_enabled === "1";
 const preferred = user?.preferred_payment ?? "promptpay";
 const paymentsEnabled = !!(env.OPN_PUBLIC_KEY && env.OPN_SECRET_KEY);
+const intl = settings.intl_enabled === "1";
+const userCountry = user?.country ?? "TH";
 const cfg = {
 	publicKey: env.OPN_PUBLIC_KEY ?? "",
 	gpay: env.GOOGLEPAY_MERCHANT_ID ?? "",
@@ -18,6 +21,13 @@ const cfg = {
 		changed: t(lang, "priceChanged"),
 		empty: t(lang, "emptyCart"),
 		minimum: lang === "th" ? "ยอดชำระขั้นต่ำ ฿20" : "Minimum order is ฿20",
+		refund: lang === "th" ? "กรุณายอมรับนโยบายการคืนเงินก่อนชำระเงิน" : "Please accept the refund policy before paying",
+		intl: lang === "th" ? "ขออภัย ยังไม่เปิดให้จัดส่งไปประเทศนี้ กรุณาติดต่อเราทาง LINE" : "Sorry, we don't ship to this country online yet — please contact us on LINE",
+		blocked: lang === "th" ? "สินค้าต่อไปนี้จัดส่งได้เฉพาะในประเทศไทย กรุณานำออกจากตะกร้า:" : "These items can only be delivered within Thailand — please remove them from your cart:",
+		days: lang === "th" ? "ระยะเวลาจัดส่งประมาณ {d} วันทำการ (ไม่รวมพิธีการศุลกากร) ผู้รับอาจต้องชำระภาษีนำเข้า" : "Delivery in about {d} working days (plus customs). The recipient may need to pay import duties.",
+		subLabel: [t(lang, "subdistrict"), lang === "th" ? "ที่อยู่บรรทัดที่ 2" : "Address line 2"],
+		distLabel: [t(lang, "district") + " *", lang === "th" ? "เมือง *" : "City *"],
+		provLabel: [t(lang, "province") + " *", lang === "th" ? "รัฐ / จังหวัด" : "State / Province"],
 		error: lang === "th" ? "เกิดข้อผิดพลาด กรุณาลองใหม่" : "Something went wrong — please try again",
 	},
 };
@@ -50,17 +60,34 @@ const cfg = {
 					<h2 class="h3">{t(lang, "deliveryMethod")}</h2>
 					<div class="opts">
 						<label class="opt"><input type="radio" name="delivery" value="delivery" checked /> {t(lang, "delivery")}</label>
-						{pickup && <label class="opt"><input type="radio" name="delivery" value="pickup" /> {t(lang, "pickup")}</label>}
+						{pickup && <label class="opt" data-pickup-opt><input type="radio" name="delivery" value="pickup" /> {t(lang, "pickup")}</label>}
 					</div>
 					<div data-address>
+						{
+							intl ? (
+								<div class="field">
+									<label for="country">{lang === "th" ? "ประเทศ" : "Country"} *</label>
+									<select id="country" name="country" autocomplete="country">
+										{COUNTRIES.map((c) => (
+											<option value={c.code} selected={c.code === userCountry}>
+												{c[lang]}
+											</option>
+										))}
+									</select>
+								</div>
+							) : (
+								<input type="hidden" name="country" value="TH" />
+							)
+						}
 						<div class="field"><label for="address_line">{t(lang, "addressLine")} *</label><input id="address_line" name="address_line" autocomplete="street-address" value={user?.address_line ?? ""} /></div>
 						<div class="grid-2">
-							<div class="field"><label for="subdistrict">{t(lang, "subdistrict")}</label><input id="subdistrict" name="subdistrict" value={user?.subdistrict ?? ""} /></div>
-							<div class="field"><label for="district">{t(lang, "district")} *</label><input id="district" name="district" value={user?.district ?? ""} /></div>
-							<div class="field"><label for="province">{t(lang, "province")} *</label><input id="province" name="province" autocomplete="address-level1" value={user?.province ?? ""} /></div>
-							<div class="field"><label for="postcode">{t(lang, "postcode")} *</label><input id="postcode" name="postcode" inputmode="numeric" autocomplete="postal-code" maxlength="5" value={user?.postcode ?? ""} /></div>
+							<div class="field"><label for="subdistrict" data-l="subLabel">{t(lang, "subdistrict")}</label><input id="subdistrict" name="subdistrict" value={user?.subdistrict ?? ""} /></div>
+							<div class="field"><label for="district" data-l="distLabel">{t(lang, "district")} *</label><input id="district" name="district" value={user?.district ?? ""} /></div>
+							<div class="field"><label for="province" data-l="provLabel">{t(lang, "province")} *</label><input id="province" name="province" autocomplete="address-level1" value={user?.province ?? ""} /></div>
+							<div class="field"><label for="postcode">{t(lang, "postcode")} *</label><input id="postcode" name="postcode" inputmode="numeric" autocomplete="postal-code" maxlength="12" value={user?.postcode ?? ""} /></div>
 						</div>
 					</div>
+					<p class="small muted" data-intl-note hidden></p>
 					<p class="small muted" data-pickup-note hidden>{t(lang, "pickupNote")} — {lang === "th" ? settings.address_th : settings.address_en}</p>
 					<div class="field"><label for="note">{t(lang, "orderNote")}</label><textarea id="note" name="note" rows="2"></textarea></div>
 				</section>
@@ -91,6 +118,10 @@ const cfg = {
 					<div><dt>{t(lang, "shipping")}</dt><dd data-shipping>–</dd></div>
 					<div class="tot"><dt>{t(lang, "total")}</dt><dd data-total>–</dd></div>
 				</dl>
+				<label class="check small refund">
+					<input type="checkbox" name="accept_refund" required />
+					<span>{lang === "th" ? "ฉันได้อ่านและยอมรับ" : "I have read and accept the"} <a href="/refund-policy" target="_blank">{lang === "th" ? "นโยบายการคืนสินค้าและคืนเงิน" : "returns & refund policy"}</a></span>
+				</label>
 				<button class="btn btn-block" type="submit" data-submit disabled>{t(lang, "placeOrder")}</button>
 				<p class="tiny muted pay-note">PromptPay · Google Pay · Visa / Mastercard / JCB — {lang === "th" ? "ชำระผ่าน Opn Payments อย่างปลอดภัย" : "secured by Opn Payments"}</p>
 			</aside>
@@ -110,6 +141,9 @@ const cfg = {
 	const fmt = (s: number) => "฿" + (s / 100).toLocaleString("en-US", { minimumFractionDigits: s % 100 ? 2 : 0, maximumFractionDigits: 2 });
 	const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
+	function country() {
+		return (form.querySelector<HTMLSelectElement | HTMLInputElement>('[name="country"]')?.value ?? "TH") as string;
+	}
 	function delivery() {
 		return (form.querySelector<HTMLInputElement>('input[name="delivery"]:checked')?.value ?? "delivery") as string;
 	}
@@ -119,16 +153,34 @@ const cfg = {
 		if (msg) errEl.scrollIntoView({ behavior: "smooth", block: "center" });
 	}
 
+	function syncCountry() {
+		const abroad = country() !== "TH";
+		const pick = form.querySelector<HTMLElement>("[data-pickup-opt]");
+		if (pick) {
+			pick.hidden = abroad;
+			if (abroad) form.querySelector<HTMLInputElement>('input[name="delivery"][value="delivery"]')!.checked = true;
+		}
+		form.querySelectorAll<HTMLElement>("[data-l]").forEach((el) => (el.textContent = L[el.dataset.l!][abroad ? 1 : 0]));
+	}
+
 	async function refresh() {
+		syncCountry();
 		const isPickup = delivery() === "pickup";
 		form.querySelector<HTMLElement>("[data-address]")!.hidden = isPickup;
 		form.querySelector<HTMLElement>("[data-pickup-note]")!.hidden = !isPickup;
 		const res = await fetch("/api/quote", {
 			method: "POST",
 			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ cart: readCart(), delivery: delivery() }),
+			body: JSON.stringify({ cart: readCart(), delivery: delivery(), country: country() }),
 		});
 		const q = await res.json();
+		const intlNote = form.querySelector<HTMLElement>("[data-intl-note]")!;
+		intlNote.hidden = q.country === "TH";
+		if (q.intlUnavailable) intlNote.textContent = L.intl;
+		else if (q.blocked.length) {
+			const names = q.lines.filter((l: any) => q.blocked.includes(l.sku)).map((l: any) => "• " + (cfg.lang === "en" && l.name_en ? l.name_en : l.name));
+			intlNote.innerHTML = `<strong>${esc(L.blocked)}</strong><br>${names.map(esc).join("<br>")} <a href="/cart">→</a>`;
+		} else if (q.zoneDays) intlNote.textContent = L.days.replace("{d}", q.zoneDays);
 		if (q.removed.length || q.adjusted.length) {
 			const fixed: Record<string, number> = {};
 			for (const l of q.lines) fixed[l.sku] = l.qty;
@@ -143,7 +195,7 @@ const cfg = {
 			items.innerHTML = q.lines
 				.map((l: any) => `<div class="it"><span>${esc(cfg.lang === "en" && l.name_en ? l.name_en : l.name)} <span class="muted">× ${l.qty}</span></span><span>${fmt(l.line_satang)}</span></div>`)
 				.join("");
-			submitBtn.disabled = false;
+			submitBtn.disabled = q.intlUnavailable || q.blocked.length > 0;
 		}
 		form.querySelector("[data-subtotal]")!.textContent = fmt(q.subtotal);
 		form.querySelector("[data-discount-row]")!.toggleAttribute("hidden", !q.discount);
@@ -153,7 +205,8 @@ const cfg = {
 	}
 
 	form.addEventListener("change", (e) => {
-		if ((e.target as HTMLInputElement).name === "delivery") refresh();
+		const n = (e.target as HTMLInputElement).name;
+		if (n === "delivery" || n === "country") refresh();
 	});
 
 	form.addEventListener("submit", async (e) => {
@@ -162,13 +215,18 @@ const cfg = {
 		const fd = new FormData(form);
 		const body: Record<string, unknown> = Object.fromEntries(fd.entries());
 		body.save_profile = fd.get("save_profile") === "on";
+		body.accept_refund = fd.get("accept_refund") === "on";
+		if (!body.accept_refund) {
+			showError(L.refund);
+			return;
+		}
 		body.cart = readCart();
 		submitBtn.disabled = true;
 		try {
 			const res = await fetch("/api/checkout", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 			const data = await res.json();
 			if (!res.ok) {
-				if (data.error === "changed") await refresh();
+				if (["changed", "blocked", "intl"].includes(data.error)) await refresh();
 				showError(L[data.error] ?? L.error);
 				submitBtn.disabled = false;
 				return;
@@ -275,6 +333,15 @@ const cfg = {
 		border-top: 1px solid var(--line);
 		padding-top: 10px !important;
 		font-size: 1.15rem;
+	}
+	.refund {
+		margin: 4px 0 12px;
+	}
+	[data-intl-note] {
+		background: var(--amber-soft);
+		color: #7a4f10;
+		padding: 10px 12px;
+		border-radius: var(--radius-sm);
 	}
 	.pay-note {
 		margin: 10px 0 0;

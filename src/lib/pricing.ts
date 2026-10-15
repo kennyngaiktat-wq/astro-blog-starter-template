@@ -1,6 +1,7 @@
 import { all } from "./db";
 import { canBuyOnline, type Product } from "./catalog";
 import { num, type Settings } from "./settings";
+import { DEFAULT_ITEM_WEIGHT_G, PACKAGING_G, canShipAbroad, intlRate, loadZones, zoneFor } from "./shipping";
 
 export interface CartLine {
 	sku: string;
@@ -19,6 +20,8 @@ export interface PricedLine {
 	qty: number;
 	line_satang: number;
 	stock: number;
+	weight_g: number;
+	domestic_only: boolean;
 }
 
 export interface Quote {
@@ -31,6 +34,13 @@ export interface Quote {
 	total: number;
 	discountPct: number;
 	member: boolean;
+	country: string;
+	zone: string | null;
+	zoneDays: string | null;
+	/** SKUs that can't be delivered to the chosen country */
+	blocked: string[];
+	/** International shipping is switched off or the country isn't served */
+	intlUnavailable: boolean;
 }
 
 export function sanitiseCart(input: unknown): CartLine[] {
@@ -53,7 +63,7 @@ export function sanitiseCart(input: unknown): CartLine[] {
 export async function quoteCart(
 	db: D1Database,
 	cart: CartLine[],
-	opts: { member: boolean; delivery: "delivery" | "pickup"; settings: Settings },
+	opts: { member: boolean; delivery: "delivery" | "pickup"; settings: Settings; country?: string },
 ): Promise<Quote> {
 	const skus = cart.map((c) => c.sku);
 	const products = skus.length
@@ -87,6 +97,8 @@ export async function quoteCart(
 			qty,
 			line_satang: p.price_satang * qty,
 			stock: p.stock,
+			weight_g: p.weight_g && p.weight_g > 0 ? p.weight_g : DEFAULT_ITEM_WEIGHT_G,
+			domestic_only: !canShipAbroad(p),
 		});
 	}
 
@@ -96,8 +108,24 @@ export async function quoteCart(
 	const afterDiscount = subtotal - discount;
 	const fee = Math.round(num(opts.settings.shipping_fee, 0) * 100);
 	const freeMin = Math.round(num(opts.settings.free_shipping_min, 0) * 100);
+	const country = (opts.country || "TH").toUpperCase();
+	const abroad = opts.delivery === "delivery" && country !== "TH";
 	let shipping = 0;
-	if (opts.delivery === "delivery" && lines.length) {
+	let zone: string | null = null;
+	let zoneDays: string | null = null;
+	let blocked: string[] = [];
+	let intlUnavailable = false;
+	if (abroad && lines.length) {
+		const z = opts.settings.intl_enabled === "1" ? zoneFor(country, loadZones(opts.settings)) : null;
+		if (!z) intlUnavailable = true;
+		else {
+			zone = z.id;
+			zoneDays = z.days;
+			blocked = lines.filter((l) => l.domestic_only).map((l) => l.sku);
+			const grams = lines.reduce((a, l) => a + l.weight_g * l.qty, 0) + PACKAGING_G;
+			shipping = intlRate(z, grams);
+		}
+	} else if (opts.delivery === "delivery" && lines.length) {
 		shipping = freeMin > 0 && afterDiscount >= freeMin ? 0 : fee;
 	}
 	return {
@@ -110,5 +138,10 @@ export async function quoteCart(
 		total: afterDiscount + shipping,
 		discountPct,
 		member: opts.member,
+		country: abroad ? country : "TH",
+		zone,
+		zoneDays,
+		blocked,
+		intlUnavailable,
 	};
 }

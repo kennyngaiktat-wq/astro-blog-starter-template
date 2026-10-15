@@ -4,6 +4,7 @@ import { t } from "../../lib/i18n";
 import { first } from "../../lib/db";
 import { createCustomerSession, hashPassword } from "../../lib/auth";
 import { isEmail, PREFERRED_PAYMENTS, safeNext, str } from "../../lib/forms";
+import { COUNTRIES, COUNTRY_CODES } from "../../lib/shipping";
 
 const { lang, env, user, settings } = Astro.locals;
 const next = safeNext(Astro.url.searchParams.get("next"));
@@ -14,12 +15,13 @@ let error = "";
 const v: Record<string, string> = {};
 if (Astro.request.method === "POST") {
 	const fd = await Astro.request.formData();
-	for (const k of ["name", "email", "phone", "address_line", "subdistrict", "district", "province", "postcode", "preferred_payment"]) v[k] = str(fd, k);
+	for (const k of ["name", "email", "phone", "address_line", "subdistrict", "district", "province", "postcode", "preferred_payment", "country"]) v[k] = str(fd, k);
+	if (!COUNTRY_CODES.has(v.country)) v.country = "TH";
 	v.email = v.email.toLowerCase();
 	const password = String(fd.get("password") ?? "");
 	const consent = fd.get("consent") === "on";
 	const marketing = fd.get("marketing") === "on" ? 1 : 0;
-	if (!v.name || !isEmail(v.email) || !v.phone || !v.address_line || !v.district || !v.province || !v.postcode || !consent) {
+	if (!v.name || !isEmail(v.email) || !v.phone || !v.address_line || !v.district || (v.country === "TH" && !v.province) || !v.postcode || !consent) {
 		error = t(lang, "required");
 	} else if (password.length < 8) {
 		error = t(lang, "passwordShort");
@@ -28,10 +30,10 @@ if (Astro.request.method === "POST") {
 	} else {
 		const pay = (PREFERRED_PAYMENTS as readonly string[]).includes(v.preferred_payment) ? v.preferred_payment : "promptpay";
 		const row = await env.DB.prepare(
-			`INSERT INTO customers (email, password_hash, name, phone, address_line, subdistrict, district, province, postcode, preferred_payment, marketing_opt_in)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+			`INSERT INTO customers (email, password_hash, name, phone, address_line, subdistrict, district, province, postcode, preferred_payment, marketing_opt_in, country)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
 		)
-			.bind(v.email, await hashPassword(password), v.name, v.phone, v.address_line, v.subdistrict, v.district, v.province, v.postcode, pay, marketing)
+			.bind(v.email, await hashPassword(password), v.name, v.phone, v.address_line, v.subdistrict, v.district, v.province, v.postcode, pay, marketing, v.country)
 			.first<{ id: number }>();
 		await createCustomerSession(env.DB, Astro.cookies, row!.id, Astro.url.protocol === "https:");
 		return Astro.redirect(next);
@@ -53,12 +55,16 @@ if (Astro.request.method === "POST") {
 				</div>
 				<div class="field"><label for="password">{t(lang, "password")} *</label><input id="password" name="password" type="password" required minlength="8" autocomplete="new-password" /></div>
 				<h2 class="h3">{t(lang, "shippingAddress")}</h2>
+				<div class="field">
+					<label for="country">{lang === "th" ? "ประเทศ" : "Country"}</label>
+					<select id="country" name="country">{COUNTRIES.map((c) => <option value={c.code} selected={(v.country || "TH") === c.code}>{c[lang]}</option>)}</select>
+				</div>
 				<div class="field"><label for="address_line">{t(lang, "addressLine")} *</label><input id="address_line" name="address_line" required autocomplete="street-address" value={v.address_line} /></div>
 				<div class="grid-2">
 					<div class="field"><label for="subdistrict">{t(lang, "subdistrict")}</label><input id="subdistrict" name="subdistrict" value={v.subdistrict} /></div>
 					<div class="field"><label for="district">{t(lang, "district")} *</label><input id="district" name="district" required value={v.district} /></div>
-					<div class="field"><label for="province">{t(lang, "province")} *</label><input id="province" name="province" required value={v.province} /></div>
-					<div class="field"><label for="postcode">{t(lang, "postcode")} *</label><input id="postcode" name="postcode" required inputmode="numeric" maxlength="5" value={v.postcode} /></div>
+					<div class="field"><label for="province">{t(lang, "province")} *</label><input id="province" name="province" value={v.province} /></div>
+					<div class="field"><label for="postcode">{t(lang, "postcode")} *</label><input id="postcode" name="postcode" required maxlength="12" value={v.postcode} /></div>
 				</div>
 				<div class="field">
 					<label for="preferred_payment">{t(lang, "preferredPayment")}</label>

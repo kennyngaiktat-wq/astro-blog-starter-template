@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { quoteCart, sanitiseCart } from "../../lib/pricing";
 import { newAccessKey, newOrderNo } from "../../lib/orders";
 import { run } from "../../lib/db";
+import { COUNTRY_CODES } from "../../lib/shipping";
 
 const PAYMENT_METHODS = ["promptpay", "googlepay", "applepay", "card"];
 
@@ -15,7 +16,8 @@ function clean(v: unknown, max = 200): string {
 export const POST: APIRoute = async ({ request, locals }) => {
 	const db = locals.env.DB;
 	const b = (await request.json().catch(() => ({}))) as Record<string, unknown>;
-	const delivery = b.delivery === "pickup" && locals.settings.pickup_enabled === "1" ? "pickup" : "delivery";
+	const country = COUNTRY_CODES.has(String(b.country)) ? String(b.country) : "TH";
+	const delivery = b.delivery === "pickup" && locals.settings.pickup_enabled === "1" && country === "TH" ? "pickup" : "delivery";
 	const f = {
 		name: clean(b.name, 120),
 		email: clean(b.email, 160).toLowerCase(),
@@ -24,18 +26,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
 		subdistrict: clean(b.subdistrict, 100),
 		district: clean(b.district, 100),
 		province: clean(b.province, 100),
-		postcode: clean(b.postcode, 10),
+		postcode: clean(b.postcode, 12),
 		note: clean(b.note, 500),
 	};
 	const payment = PAYMENT_METHODS.includes(String(b.payment_method)) ? String(b.payment_method) : "promptpay";
 
 	const missing = !f.name || !f.phone || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email);
-	const missingAddr = delivery === "delivery" && (!f.address_line || !f.district || !f.province || !f.postcode);
+	const missingAddr = delivery === "delivery" && (!f.address_line || !f.district || (country === "TH" && !f.province) || !f.postcode);
 	if (missing || missingAddr) return Response.json({ error: "required" }, { status: 400 });
+	if (b.accept_refund !== true) return Response.json({ error: "refund" }, { status: 400 });
 
 	const cart = sanitiseCart(b.cart);
-	const quote = await quoteCart(db, cart, { member: !!locals.user, delivery, settings: locals.settings });
+	const quote = await quoteCart(db, cart, { member: !!locals.user, delivery, settings: locals.settings, country });
 	if (!quote.lines.length) return Response.json({ error: "empty" }, { status: 400 });
+	if (quote.intlUnavailable) return Response.json({ error: "intl", quote }, { status: 400 });
+	if (quote.blocked.length) return Response.json({ error: "blocked", quote }, { status: 400 });
 	if (quote.removed.length || quote.adjusted.length) {
 		return Response.json({ error: "changed", quote }, { status: 409 });
 	}
@@ -48,8 +53,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
 	const inserted = await db
 		.prepare(
 			`INSERT INTO orders (order_no, access_key, customer_id, name, email, phone, delivery_method, address_line, subdistrict, district, province, postcode, note,
-			 subtotal_satang, discount_satang, shipping_satang, total_satang, payment_method)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+			 subtotal_satang, discount_satang, shipping_satang, total_satang, payment_method, country, shipping_zone)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
 		)
 		.bind(
 			orderNo,
@@ -70,6 +75,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
 			quote.shipping,
 			quote.total,
 			payment,
+			country,
+			quote.zone,
 		)
 		.first<{ id: number }>();
 	const orderId = inserted!.id;
@@ -85,7 +92,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 	if (locals.user && b.save_profile) {
 		await run(
 			db,
-			`UPDATE customers SET phone = ?, address_line = ?, subdistrict = ?, district = ?, province = ?, postcode = ?, preferred_payment = ?, updated_at = datetime('now') WHERE id = ?`,
+			`UPDATE customers SET phone = ?, address_line = ?, subdistrict = ?, district = ?, province = ?, postcode = ?, preferred_payment = ?, country = ?, updated_at = datetime('now') WHERE id = ?`,
 			f.phone,
 			f.address_line || locals.user.address_line,
 			f.subdistrict || locals.user.subdistrict,
@@ -93,6 +100,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 			f.province || locals.user.province,
 			f.postcode || locals.user.postcode,
 			payment,
+			delivery === "delivery" ? country : (locals.user.country ?? "TH"),
 			locals.user.id,
 		);
 	}

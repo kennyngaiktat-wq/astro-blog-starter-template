@@ -4,6 +4,7 @@ import { all, first, run } from "../../../lib/db";
 import { hashPassword } from "../../../lib/auth";
 import { isEmail, PREFERRED_PAYMENTS, str } from "../../../lib/forms";
 import { baht } from "../../../lib/catalog";
+import { COUNTRIES, COUNTRY_CODES } from "../../../lib/shipping";
 import type { Order } from "../../../lib/orders";
 
 const { env } = Astro.locals;
@@ -18,7 +19,7 @@ if (Astro.request.method === "POST") {
 	const op = fd.get("op");
 	if (op === "save") {
 		const v: Record<string, string> = {};
-		for (const k of ["name", "email", "phone", "address_line", "subdistrict", "district", "province", "postcode", "preferred_payment", "admin_notes"]) v[k] = str(fd, k, k === "admin_notes" ? 2000 : 300);
+		for (const k of ["name", "email", "phone", "address_line", "subdistrict", "district", "province", "postcode", "preferred_payment", "admin_notes", "country"]) v[k] = str(fd, k, k === "admin_notes" ? 2000 : 300);
 		v.email = v.email.toLowerCase();
 		const clash = await first(env.DB, "SELECT id FROM customers WHERE email = ? AND id != ?", v.email, id);
 		if (!v.name || !isEmail(v.email) || !v.phone) error = "Name, a valid email and phone are required.";
@@ -26,7 +27,7 @@ if (Astro.request.method === "POST") {
 		else {
 			await run(
 				env.DB,
-				`UPDATE customers SET name=?, email=?, phone=?, address_line=?, subdistrict=?, district=?, province=?, postcode=?, preferred_payment=?, admin_notes=?, marketing_opt_in=?, disabled=?, updated_at=datetime('now') WHERE id=?`,
+				`UPDATE customers SET name=?, email=?, phone=?, address_line=?, subdistrict=?, district=?, province=?, postcode=?, preferred_payment=?, admin_notes=?, marketing_opt_in=?, disabled=?, country=?, updated_at=datetime('now') WHERE id=?`,
 				v.name,
 				v.email,
 				v.phone,
@@ -39,6 +40,7 @@ if (Astro.request.method === "POST") {
 				v.admin_notes,
 				fd.get("marketing") === "on" ? 1 : 0,
 				fd.get("disabled") === "on" ? 1 : 0,
+				COUNTRY_CODES.has(v.country) ? v.country : "TH",
 				id,
 			);
 			if (fd.get("disabled") === "on") await run(env.DB, "DELETE FROM sessions WHERE customer_id = ?", id);
@@ -82,6 +84,7 @@ const orders = await all<Order>(env.DB, "SELECT * FROM orders WHERE customer_id 
 				<div class="field"><label>Province</label><input name="province" value={c!.province ?? ""} /></div>
 				<div class="field"><label>Postcode</label><input name="postcode" value={c!.postcode ?? ""} /></div>
 			</div>
+			<div class="field"><label>Country</label><select name="country">{COUNTRIES.map((x) => <option value={x.code} selected={(c!.country || "TH") === x.code}>{x.en}</option>)}</select></div>
 			<div class="field">
 				<label>Preferred payment</label>
 				<select name="preferred_payment">
