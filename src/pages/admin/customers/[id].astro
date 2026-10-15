@@ -1,0 +1,132 @@
+---
+import Admin from "../../../layouts/Admin.astro";
+import { all, first, run } from "../../../lib/db";
+import { hashPassword } from "../../../lib/auth";
+import { isEmail, PREFERRED_PAYMENTS, str } from "../../../lib/forms";
+import { baht } from "../../../lib/catalog";
+import type { Order } from "../../../lib/orders";
+
+const { env } = Astro.locals;
+const id = Number(Astro.params.id);
+let c = await first<Record<string, any>>(env.DB, "SELECT * FROM customers WHERE id = ?", id);
+if (!c) return Astro.redirect("/admin/customers");
+let msg = "";
+let error = "";
+
+if (Astro.request.method === "POST") {
+	const fd = await Astro.request.formData();
+	const op = fd.get("op");
+	if (op === "save") {
+		const v: Record<string, string> = {};
+		for (const k of ["name", "email", "phone", "address_line", "subdistrict", "district", "province", "postcode", "preferred_payment", "admin_notes"]) v[k] = str(fd, k, k === "admin_notes" ? 2000 : 300);
+		v.email = v.email.toLowerCase();
+		const clash = await first(env.DB, "SELECT id FROM customers WHERE email = ? AND id != ?", v.email, id);
+		if (!v.name || !isEmail(v.email) || !v.phone) error = "Name, a valid email and phone are required.";
+		else if (clash) error = "Another customer already uses that email.";
+		else {
+			await run(
+				env.DB,
+				`UPDATE customers SET name=?, email=?, phone=?, address_line=?, subdistrict=?, district=?, province=?, postcode=?, preferred_payment=?, admin_notes=?, marketing_opt_in=?, disabled=?, updated_at=datetime('now') WHERE id=?`,
+				v.name,
+				v.email,
+				v.phone,
+				v.address_line,
+				v.subdistrict,
+				v.district,
+				v.province,
+				v.postcode,
+				(PREFERRED_PAYMENTS as readonly string[]).includes(v.preferred_payment) ? v.preferred_payment : null,
+				v.admin_notes,
+				fd.get("marketing") === "on" ? 1 : 0,
+				fd.get("disabled") === "on" ? 1 : 0,
+				id,
+			);
+			if (fd.get("disabled") === "on") await run(env.DB, "DELETE FROM sessions WHERE customer_id = ?", id);
+			msg = "Saved.";
+		}
+	} else if (op === "reset") {
+		const pw = String(fd.get("new_password") ?? "");
+		if (pw.length < 8) error = "Temporary password must be at least 8 characters.";
+		else {
+			await run(env.DB, "UPDATE customers SET password_hash = ?, updated_at = datetime('now') WHERE id = ?", await hashPassword(pw), id);
+			await run(env.DB, "DELETE FROM sessions WHERE customer_id = ?", id);
+			msg = "Password reset. Give the customer the temporary password and ask them to change it under My account.";
+		}
+	} else if (op === "delete") {
+		await run(env.DB, "UPDATE orders SET customer_id = NULL WHERE customer_id = ?", id);
+		await run(env.DB, "DELETE FROM sessions WHERE customer_id = ?", id);
+		await run(env.DB, "DELETE FROM customers WHERE id = ?", id);
+		return Astro.redirect("/admin/customers");
+	}
+	c = await first<Record<string, any>>(env.DB, "SELECT * FROM customers WHERE id = ?", id);
+}
+const orders = await all<Order>(env.DB, "SELECT * FROM orders WHERE customer_id = ? ORDER BY id DESC", id);
+---
+
+<Admin title={c!.name}>
+	<p><a href="/admin/customers">← All customers</a></p>
+	{msg && <div class="alert alert-ok">{msg}</div>}
+	{error && <div class="alert alert-error">{error}</div>}
+	<div class="grid-2" style="gap:16px; align-items:start">
+		<form method="post" class="card">
+			<input type="hidden" name="op" value="save" />
+			<div class="grid-2">
+				<div class="field"><label>Name</label><input name="name" value={c!.name} required /></div>
+				<div class="field"><label>Phone</label><input name="phone" value={c!.phone} required /></div>
+			</div>
+			<div class="field"><label>Email</label><input name="email" type="email" value={c!.email} required /></div>
+			<div class="field"><label>Address</label><input name="address_line" value={c!.address_line ?? ""} /></div>
+			<div class="grid-2">
+				<div class="field"><label>Sub-district</label><input name="subdistrict" value={c!.subdistrict ?? ""} /></div>
+				<div class="field"><label>District</label><input name="district" value={c!.district ?? ""} /></div>
+				<div class="field"><label>Province</label><input name="province" value={c!.province ?? ""} /></div>
+				<div class="field"><label>Postcode</label><input name="postcode" value={c!.postcode ?? ""} /></div>
+			</div>
+			<div class="field">
+				<label>Preferred payment</label>
+				<select name="preferred_payment">
+					<option value="">—</option>
+					<option value="promptpay" selected={c!.preferred_payment === "promptpay"}>PromptPay</option>
+					<option value="googlepay" selected={c!.preferred_payment === "googlepay"}>Google Pay</option>
+					<option value="card" selected={c!.preferred_payment === "card"}>Card</option>
+				</select>
+			</div>
+			<div class="field"><label>Admin notes (customers can't see this)</label><textarea name="admin_notes">{c!.admin_notes ?? ""}</textarea></div>
+			<label class="check small field"><input type="checkbox" name="marketing" checked={c!.marketing_opt_in === 1} /> Agreed to receive promotions</label>
+			<label class="check small field"><input type="checkbox" name="disabled" checked={c!.disabled === 1} /> Disable account (can't log in, no member discount)</label>
+			<p class="tiny muted">Joined {c!.created_at} · Updated {c!.updated_at}</p>
+			<button class="btn">Save customer</button>
+		</form>
+		<div>
+			<section class="card">
+				<h2 class="h3">Orders ({orders.length})</h2>
+				{orders.length === 0 ? <p class="muted small">No orders.</p> : (
+					<table class="table">
+						<tbody>
+							{orders.map((o) => (
+								<tr>
+									<td><a href={`/admin/orders/${o.id}`}>{o.order_no}</a></td>
+									<td class="small">{o.created_at.slice(0, 10)}</td>
+									<td>{baht(o.total_satang)}</td>
+									<td><span class="badge">{o.status}</span></td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				)}
+			</section>
+			<form method="post" class="card">
+				<input type="hidden" name="op" value="reset" />
+				<h2 class="h3">Reset password</h2>
+				<div class="field"><label>Temporary password</label><input name="new_password" minlength="8" required /></div>
+				<button class="btn btn-ghost btn-sm">Set temporary password</button>
+			</form>
+			<form method="post" class="card" onsubmit="return confirm('Delete this customer and their personal data? Their orders are kept.')">
+				<input type="hidden" name="op" value="delete" />
+				<h2 class="h3">Delete customer</h2>
+				<p class="small muted">Removes their account and personal details (PDPA request). Past orders stay for your records.</p>
+				<button class="btn btn-danger btn-sm">Delete customer</button>
+			</form>
+		</div>
+	</div>
+</Admin>

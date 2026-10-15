@@ -1,0 +1,164 @@
+---
+import Admin from "../../../layouts/Admin.astro";
+import { CATEGORIES, CATEGORY_SLUGS, allTags, baht, normaliseTags, toSatang, type Product } from "../../../lib/catalog";
+import { first, run } from "../../../lib/db";
+import { str } from "../../../lib/forms";
+
+const { env } = Astro.locals;
+const db = env.DB;
+const isNew = Astro.params.id === "new";
+let p: Partial<Product> | null = isNew
+	? { sku: "", name: "", price_satang: 0, stock: 0, category: "medical_supplies", consult_required: 0, active: 1, featured: 0, tags: "" }
+	: await first<Product>(db, "SELECT * FROM products WHERE id = ?", Number(Astro.params.id));
+if (!p) return Astro.redirect("/admin/products");
+
+let error = "";
+let msg = Astro.url.searchParams.get("saved") ? "Saved." : "";
+
+if (Astro.request.method === "POST") {
+	const fd = await Astro.request.formData();
+	if (fd.get("op") === "delete" && !isNew) {
+		await run(db, "DELETE FROM products WHERE id = ?", p.id);
+		return Astro.redirect("/admin/products");
+	}
+	const v = {
+		sku: str(fd, "sku", 64),
+		barcode: str(fd, "barcode", 64),
+		name: str(fd, "name", 300),
+		name_en: str(fd, "name_en", 300),
+		unit: str(fd, "unit", 40),
+		price_satang: toSatang(str(fd, "price", 20)),
+		stock: Math.floor(Number(str(fd, "stock", 10))),
+		category: str(fd, "category", 40),
+		consult_required: fd.get("consult_required") === "on" ? 1 : 0,
+		active: fd.get("active") === "on" ? 1 : 0,
+		featured: fd.get("featured") === "on" ? 1 : 0,
+		tags: normaliseTags(str(fd, "tags", 500)),
+		description: String(fd.get("description") ?? "").trim().slice(0, 4000),
+		image_url: str(fd, "image_url", 500),
+	};
+
+	const file = fd.get("image");
+	if (file instanceof File && file.size > 0) {
+		if (!env.IMAGES) error = "Image upload needs an R2 bucket bound as IMAGES (see README). You can paste an image link instead.";
+		else if (!/^image\/(png|jpe?g|webp|gif)$/.test(file.type) || file.size > 3_000_000) error = "Upload a PNG, JPG or WebP under 3 MB.";
+		else {
+			const ext = file.type.split("/")[1].replace("jpeg", "jpg");
+			const key = `products/${v.sku.replace(/[^A-Za-z0-9_-]/g, "_")}-${Date.now()}.${ext}`;
+			await env.IMAGES.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: file.type, cacheControl: "public, max-age=31536000, immutable" } });
+			v.image_url = `/img/${key}`;
+		}
+	}
+	if (fd.get("remove_image") === "on") v.image_url = "";
+
+	if (!error) {
+		if (!v.sku || !v.name) error = "SKU and name are required.";
+		else if (!Number.isFinite(v.price_satang) || v.price_satang < 0) error = "Enter a valid price.";
+		else if (!CATEGORY_SLUGS.includes(v.category as never)) error = "Choose a category.";
+		else {
+			const clash = await first<{ id: number }>(db, "SELECT id FROM products WHERE sku = ? AND id != ?", v.sku, isNew ? 0 : p.id);
+			if (clash) error = `SKU ${v.sku} is already used by another product.`;
+		}
+	}
+	if (!error) {
+		const stock = Number.isFinite(v.stock) ? v.stock : 0;
+		if (isNew) {
+			const row = await db
+				.prepare(
+					`INSERT INTO products (sku, barcode, name, name_en, unit, price_satang, stock, category, consult_required, active, featured, tags, description, image_url)
+					 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
+				)
+				.bind(v.sku, v.barcode || null, v.name, v.name_en || null, v.unit || null, v.price_satang, stock, v.category, v.consult_required, v.active, v.featured, v.tags, v.description || null, v.image_url || null)
+				.first<{ id: number }>();
+			return Astro.redirect(`/admin/products/${row!.id}?saved=1`);
+		}
+		await run(
+			db,
+			`UPDATE products SET sku=?, barcode=?, name=?, name_en=?, unit=?, price_satang=?, stock=?, category=?, consult_required=?, active=?, featured=?, tags=?, description=?, image_url=?, updated_at=datetime('now') WHERE id=?`,
+			v.sku,
+			v.barcode || null,
+			v.name,
+			v.name_en || null,
+			v.unit || null,
+			v.price_satang,
+			stock,
+			v.category,
+			v.consult_required,
+			v.active,
+			v.featured,
+			v.tags,
+			v.description || null,
+			v.image_url || null,
+			p.id,
+		);
+		return Astro.redirect(`/admin/products/${p.id}?saved=1`);
+	}
+	p = { ...p, ...v, price_satang: Number.isFinite(v.price_satang) ? v.price_satang : 0 };
+}
+const tags = await allTags(db, true);
+---
+
+<Admin title={isNew ? "New product" : p.name ?? "Product"}>
+	<p><a href="/admin/products">← All products</a>{!isNew && p.active ? <> · <a href={`/products/${encodeURIComponent(p.sku ?? "")}`} target="_blank">View on site ↗</a></> : null}</p>
+	{msg && <div class="alert alert-ok">{msg}</div>}
+	{error && <div class="alert alert-error">{error}</div>}
+	<form method="post" enctype="multipart/form-data" class="edit">
+		<div class="card">
+			<div class="grid-2">
+				<div class="field"><label for="sku">SKU (product code) *</label><input id="sku" name="sku" required value={p.sku} /></div>
+				<div class="field"><label for="barcode">Barcode</label><input id="barcode" name="barcode" value={p.barcode ?? ""} /></div>
+			</div>
+			<div class="field"><label for="name">Name (as shown on the site) *</label><input id="name" name="name" required value={p.name} /></div>
+			<div class="field"><label for="name_en">English name (optional — shown when the site is in English)</label><input id="name_en" name="name_en" value={p.name_en ?? ""} /></div>
+			<div class="grid-2">
+				<div class="field"><label for="price">Selling price (฿) *</label><input id="price" name="price" inputmode="decimal" required value={((p.price_satang ?? 0) / 100).toString()} /></div>
+				<div class="field"><label for="stock">Stock</label><input id="stock" name="stock" inputmode="numeric" value={p.stock ?? 0} /></div>
+				<div class="field"><label for="unit">Unit (box, bottle, strip…)</label><input id="unit" name="unit" value={p.unit ?? ""} /></div>
+				<div class="field">
+					<label for="category">Category *</label>
+					<select id="category" name="category">
+						{CATEGORIES.map((c) => <option value={c.slug} selected={p.category === c.slug}>{c.en} · {c.th}</option>)}
+					</select>
+				</div>
+			</div>
+			<div class="field"><label for="tags">Tags (comma separated)</label><input id="tags" name="tags" value={p.tags ?? ""} list="taglist" /><datalist id="taglist">{tags.map((tg) => <option value={tg.tag} />)}</datalist>
+				<p class="tiny muted">Existing tags: {tags.map((tg) => tg.tag).join(", ")}</p></div>
+			<div class="field"><label for="description">Description (optional)</label><textarea id="description" name="description" rows="5">{p.description ?? ""}</textarea></div>
+		</div>
+		<div>
+			<div class="card">
+				<label class="check field"><input type="checkbox" name="active" checked={p.active === 1} /> <span><strong>Show on website</strong></span></label>
+				<label class="check field"><input type="checkbox" name="consult_required" checked={p.consult_required === 1} /> <span><strong>Requires pharmacist consultation</strong><br /><span class="small muted">Listed on the site, but can't be added to the cart.</span></span></label>
+				<label class="check field"><input type="checkbox" name="featured" checked={p.featured === 1} /> <span><strong>Feature on home page</strong></span></label>
+				{!isNew && <p class="small muted">Current price: {baht(p.price_satang ?? 0)} · Updated {p.updated_at}</p>}
+			</div>
+			<div class="card">
+				<strong>Image</strong>
+				{p.image_url && <img src={p.image_url} alt="" style="max-height:180px; margin:10px 0; border-radius:8px" />}
+				<div class="field"><label for="image">Upload image</label><input id="image" name="image" type="file" accept="image/png,image/jpeg,image/webp" /></div>
+				<div class="field"><label for="image_url">…or image link</label><input id="image_url" name="image_url" type="text" value={p.image_url ?? ""} placeholder="https://…" /></div>
+				{p.image_url && <label class="check small"><input type="checkbox" name="remove_image" /> Remove image</label>}
+			</div>
+			<button class="btn btn-block" type="submit" name="op" value="save">Save product</button>
+			{!isNew && <button class="btn btn-block btn-ghost del" type="submit" name="op" value="delete" formnovalidate onclick="return confirm('Delete this product permanently?')">Delete product</button>}
+		</div>
+	</form>
+</Admin>
+
+<style>
+	.edit {
+		display: grid;
+		grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+		gap: 16px;
+		align-items: start;
+	}
+	@media (max-width: 900px) {
+		.edit {
+			grid-template-columns: 1fr;
+		}
+	}
+	.del {
+		margin-top: 10px;
+		color: var(--danger);
+	}
+</style>

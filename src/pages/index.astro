@@ -1,50 +1,389 @@
 ---
-import BaseHead from '../components/BaseHead.astro';
-import Header from '../components/Header.astro';
-import Footer from '../components/Footer.astro';
-import { SITE_TITLE, SITE_DESCRIPTION } from '../consts';
+import Base from "../layouts/Base.astro";
+import Icon from "../components/Icon.astro";
+import ProductCard from "../components/ProductCard.astro";
+import { CATEGORIES, TAG_LABELS, tagLabel, type Product } from "../lib/catalog";
+import { all } from "../lib/db";
+import { t } from "../lib/i18n";
+
+const { lang, user, settings, env } = Astro.locals;
+const db = env.DB;
+const pct = Number(settings.member_discount_pct) || 0;
+
+const counts = await all<{ category: string; n: number }>(db, "SELECT category, COUNT(*) AS n FROM products WHERE active = 1 GROUP BY category");
+const countOf = (slug: string) => counts.find((c) => c.category === slug)?.n ?? 0;
+
+let featured = await all<Product>(
+	db,
+	`SELECT * FROM products WHERE active = 1 AND consult_required = 0 AND category != 'other_medication' AND stock > 0
+	 ORDER BY featured DESC, updated_at DESC LIMIT 8`,
+);
+
+const needs = ["pain-fever", "cough-cold", "allergy", "digestive", "muscle-joint", "first-aid", "vitamins", "skin", "eye-care", "herbal", "kids", "test-kits"].filter(
+	(k) => TAG_LABELS[k],
+);
+
+const marketplaces = [
+	{ name: "LINE", url: settings.line_url, cls: "mk-line" },
+	{ name: "Shopee", url: settings.shopee_url, cls: "mk-shopee" },
+	{ name: "Lazada", url: settings.lazada_url, cls: "mk-lazada" },
+	{ name: "Wongnai", url: settings.wongnai_url, cls: "mk-wongnai" },
+].filter((m) => m.url);
 ---
 
-<!doctype html>
-<html lang="en">
-	<head>
-		<BaseHead title={SITE_TITLE} description={SITE_DESCRIPTION} />
-	</head>
-	<body>
-		<Header />
-		<main>
-			<h1>🧑‍🚀 Hello, Astronaut!</h1>
-			<p>
-				Welcome to the official <a href="https://astro.build/">Astro</a> blog starter template. This
-				template serves as a lightweight, minimally-styled starting point for anyone looking to build
-				a personal website, blog, or portfolio with Astro.
-			</p>
-			<p>
-				This template comes with a few integrations already configured in your
-				<code>astro.config.mjs</code> file. You can customize your setup with
-				<a href="https://astro.build/integrations">Astro Integrations</a> to add tools like Tailwind,
-				React, or Vue to your project.
-			</p>
-			<p>Here are a few ideas on how to get started with the template:</p>
-			<ul>
-				<li>Edit this page in <code>src/pages/index.astro</code></li>
-				<li>Edit the site header items in <code>src/components/Header.astro</code></li>
-				<li>Add your name to the footer in <code>src/components/Footer.astro</code></li>
-				<li>Check out the included blog posts in <code>src/content/blog/</code></li>
-				<li>Customize the blog post page layout in <code>src/layouts/BlogPost.astro</code></li>
-			</ul>
-			<p>
-				Have fun! If you get stuck, remember to <a href="https://docs.astro.build/"
-					>read the docs
-				</a> or <a href="https://astro.build/chat">join us on Discord</a> to ask questions.
-			</p>
-			<p>
-				Looking for a blog template with a bit more personality? Check out <a
-					href="https://github.com/Charca/astro-blog-template"
-					>astro-blog-template
-				</a> by <a href="https://twitter.com/Charca">Maxi Ferreira</a>.
-			</p>
-		</main>
-		<Footer />
-	</body>
-</html>
+<Base>
+	<section class="hero">
+		<div class="wrap hero-grid">
+			<div>
+				<p class="eyebrow"><Icon name="shield" size={18} /> {t(lang, "tagline")}</p>
+				<h1>{lang === "th" ? "ดูแลสุขภาพทุกวัน ด้วยร้านยาที่คุณไว้ใจ" : "Everyday health care from a pharmacy you trust"}</h1>
+				<p class="lead">{t(lang, "heroText")}</p>
+				<div class="hero-cta">
+					<a href="/products" class="btn">{t(lang, "allProducts")} <Icon name="arrow" size={18} /></a>
+					{
+						user ? (
+							<span class="badge">{t(lang, "memberActive", { pct })}</span>
+						) : (
+							pct > 0 && (
+								<a href="/account/register" class="btn btn-ghost">
+									{t(lang, "memberBanner", { pct })}
+								</a>
+							)
+						)
+					}
+				</div>
+				<ul class="hero-points">
+					<li><Icon name="clock" size={18} /> {lang === "th" ? settings.hours_th : settings.hours_en}</li>
+					<li><Icon name="truck" size={18} /> {lang === "th" ? "จัดส่งทั่วประเทศ หรือรับที่ร้าน" : "Nationwide delivery or in-store pickup"}</li>
+					<li><Icon name="chat" size={18} /> {lang === "th" ? "ปรึกษาเภสัชกรได้ฟรี" : "Free advice from our pharmacists"}</li>
+				</ul>
+			</div>
+			<div class="hero-card" aria-hidden="true">
+				<div class="pay-row">
+					<span>PromptPay</span><span>Google Pay</span><span>{lang === "th" ? "บัตร" : "Cards"}</span>
+				</div>
+				<div class="hero-cats">
+					{
+						CATEGORIES.map((c) => (
+							<div class="hc" style={`--c: var(--cat-${c.slug}); --cs: var(--cat-${c.slug}-soft)`}>
+								<Icon name={c.icon} size={26} />
+							</div>
+						))
+					}
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="wrap section">
+		<div class="sec-head">
+			<h2>{t(lang, "shopByCategory")}</h2>
+		</div>
+		<div class="cat-grid">
+			{
+				CATEGORIES.map((c) => (
+					<a href={`/products?category=${c.slug}`} class="cat-card" style={`--c: var(--cat-${c.slug}); --cs: var(--cat-${c.slug}-soft)`}>
+						<span class="cat-ico">
+							<Icon name={c.icon} size={28} />
+						</span>
+						<span class="cat-name">{c[lang]}</span>
+						<span class="cat-desc small">{lang === "th" ? c.descTh : c.descEn}</span>
+						<span class="cat-n tiny">{t(lang, "results", { n: countOf(c.slug).toLocaleString() })}</span>
+					</a>
+				))
+			}
+		</div>
+	</section>
+
+	<section class="wrap section">
+		<div class="sec-head">
+			<h2>{t(lang, "shopByNeed")}</h2>
+		</div>
+		<div class="needs">
+			{needs.map((k) => <a class="chip" href={`/products?tag=${k}`}>{tagLabel(k, lang)}</a>)}
+		</div>
+	</section>
+
+	{
+		featured.length > 0 && (
+			<section class="wrap section">
+				<div class="sec-head">
+					<h2>{t(lang, "featured")}</h2>
+					<a href="/products">{t(lang, "viewAll")} →</a>
+				</div>
+				<div class="grid-products">
+					{featured.map((p) => (
+						<ProductCard product={p} />
+					))}
+				</div>
+			</section>
+		)
+	}
+
+	<section class="wrap section">
+		<div class="consult-band">
+			<div>
+				<h2>{lang === "th" ? "มียาที่ต้องปรึกษาเภสัชกร?" : "Need a medicine that requires a pharmacist?"}</h2>
+				<p class="muted">
+					{
+						lang === "th"
+							? "ยาบางรายการเราแสดงไว้เพื่อให้ทราบว่ามีจำหน่าย แต่ต้องได้รับคำแนะนำจากเภสัชกรก่อนจ่ายยา ทักหาเราได้เลย"
+							: "Some medicines are listed so you know we stock them, but they're only dispensed after a chat with our pharmacist. Get in touch any time."
+					}
+				</p>
+			</div>
+			<div class="consult-actions">
+				{settings.line_url && <a class="btn btn-line" href={settings.line_url} target="_blank" rel="noopener"><Icon name="chat" size={18} /> {t(lang, "chatLine")}</a>}
+				<a class="btn btn-ghost" href={`tel:${settings.phone.replace(/[^0-9+]/g, "")}`}><Icon name="phone" size={18} /> {settings.phone}</a>
+				<a class="btn btn-ghost" href="/products?category=other_medication">{lang === "th" ? "ดูรายการยา" : "Browse medicines"}</a>
+			</div>
+		</div>
+	</section>
+
+	{
+		marketplaces.length > 0 && (
+			<section class="wrap section">
+				<div class="sec-head">
+					<h2>{t(lang, "alsoOn")}</h2>
+				</div>
+				<div class="mk-row">
+					{marketplaces.map((m) => (
+						<a class:list={["mk", m.cls]} href={m.url} target="_blank" rel="noopener">
+							{m.name}
+						</a>
+					))}
+				</div>
+			</section>
+		)
+	}
+</Base>
+
+<style>
+	.hero {
+		background:
+			radial-gradient(1200px 400px at 85% -10%, #d8efe5 0, transparent 60%),
+			linear-gradient(180deg, #f1f8f4 0, var(--paper) 100%);
+		padding: 48px 0 40px;
+		border-bottom: 1px solid var(--line);
+	}
+	.hero-grid {
+		display: grid;
+		grid-template-columns: 1.3fr 1fr;
+		gap: 40px;
+		align-items: center;
+	}
+	.eyebrow {
+		display: inline-flex;
+		gap: 8px;
+		align-items: center;
+		color: var(--brand-ink);
+		font-weight: 600;
+		font-size: 0.9rem;
+		background: #fff;
+		border: 1px solid var(--line);
+		padding: 4px 12px;
+		border-radius: 999px;
+		margin: 0 0 16px;
+	}
+	.lead {
+		font-size: 1.08rem;
+		color: var(--ink-2);
+		max-width: 56ch;
+	}
+	.hero-cta {
+		display: flex;
+		gap: 10px;
+		flex-wrap: wrap;
+		align-items: center;
+		margin: 22px 0;
+	}
+	.hero-cta .btn-ghost {
+		background: #fff;
+		white-space: normal;
+		text-align: center;
+	}
+	.hero-points {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px 22px;
+		color: var(--ink-2);
+		font-size: 0.92rem;
+	}
+	.hero-points li {
+		display: flex;
+		gap: 6px;
+		align-items: center;
+	}
+	.hero-card {
+		background: #fff;
+		border: 1px solid var(--line);
+		border-radius: 22px;
+		padding: 22px;
+		box-shadow: var(--shadow);
+	}
+	.pay-row {
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
+		margin-bottom: 18px;
+	}
+	.pay-row span {
+		font-size: 0.8rem;
+		font-weight: 600;
+		border: 1px solid var(--line);
+		border-radius: 8px;
+		padding: 4px 10px;
+		color: var(--ink-2);
+	}
+	.hero-cats {
+		display: grid;
+		grid-template-columns: repeat(5, 1fr);
+		gap: 10px;
+	}
+	.hc {
+		aspect-ratio: 1;
+		border-radius: 16px;
+		display: grid;
+		place-items: center;
+		background: var(--cs);
+		color: var(--c);
+	}
+	@media (max-width: 860px) {
+		.hero-grid {
+			grid-template-columns: 1fr;
+		}
+		.hero-card {
+			display: none;
+		}
+		.hero {
+			padding: 32px 0 28px;
+		}
+	}
+	.section {
+		margin-top: 44px;
+	}
+	.sec-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 12px;
+		margin-bottom: 14px;
+	}
+	.cat-grid {
+		display: grid;
+		grid-template-columns: repeat(5, 1fr);
+		gap: 14px;
+	}
+	@media (max-width: 1000px) {
+		.cat-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+	@media (max-width: 480px) {
+		.cat-grid {
+			grid-template-columns: 1fr;
+		}
+	}
+	.cat-card {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		padding: 18px;
+		background: #fff;
+		border: 1px solid var(--line);
+		border-radius: var(--radius);
+		text-decoration: none;
+		color: var(--ink);
+		border-top: 4px solid var(--c);
+		transition: box-shadow 0.15s;
+	}
+	.cat-card:hover {
+		box-shadow: var(--shadow);
+	}
+	.cat-ico {
+		width: 48px;
+		height: 48px;
+		border-radius: 12px;
+		display: grid;
+		place-items: center;
+		background: var(--cs);
+		color: var(--c);
+	}
+	.cat-name {
+		font-weight: 600;
+		line-height: 1.3;
+		margin-top: 4px;
+	}
+	.cat-desc {
+		color: var(--muted);
+		line-height: 1.45;
+	}
+	.cat-n {
+		margin-top: auto;
+		color: var(--c);
+		font-weight: 600;
+	}
+	.needs {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+	.consult-band {
+		display: grid;
+		grid-template-columns: 1.3fr 1fr;
+		gap: 24px;
+		align-items: center;
+		padding: 28px;
+		border-radius: 20px;
+		background: var(--accent-soft);
+		border: 1px solid #f6d4c6;
+	}
+	.consult-actions {
+		display: flex;
+		gap: 10px;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+	}
+	.consult-actions .btn-ghost {
+		background: #fff;
+	}
+	@media (max-width: 760px) {
+		.consult-band {
+			grid-template-columns: 1fr;
+			padding: 20px;
+		}
+		.consult-actions {
+			justify-content: flex-start;
+		}
+	}
+	.mk-row {
+		display: flex;
+		gap: 12px;
+		flex-wrap: wrap;
+	}
+	.mk {
+		flex: 1 1 160px;
+		text-align: center;
+		padding: 18px;
+		border-radius: var(--radius);
+		font-weight: 700;
+		color: #fff;
+		text-decoration: none;
+		font-size: 1.1rem;
+	}
+	.mk-line {
+		background: #06c755;
+	}
+	.mk-shopee {
+		background: #ee4d2d;
+	}
+	.mk-lazada {
+		background: #0f146d;
+	}
+	.mk-wongnai {
+		background: #1c1c1c;
+	}
+</style>

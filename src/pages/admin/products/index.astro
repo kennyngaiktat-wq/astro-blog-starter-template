@@ -1,0 +1,424 @@
+---
+import Admin from "../../../layouts/Admin.astro";
+import { CATEGORIES, CATEGORY_SLUGS, allTags, buildProductWhere, normaliseTags, queryProducts, splitTags, toSatang, type Product, type ProductQuery } from "../../../lib/catalog";
+import { all, batchChunks } from "../../../lib/db";
+
+const { env } = Astro.locals;
+const db = env.DB;
+const sp = Astro.url.searchParams;
+const filters: ProductQuery = {
+	q: (sp.get("q") ?? "").trim(),
+	category: CATEGORY_SLUGS.includes(sp.get("category") as never) ? (sp.get("category") as string) : "",
+	tag: (sp.get("tag") ?? "").trim().toLowerCase(),
+	consult: (["yes", "no"].includes(sp.get("consult") ?? "") ? sp.get("consult") : "") as ProductQuery["consult"],
+	active: (["yes", "no"].includes(sp.get("active") ?? "") ? sp.get("active") : "") as ProductQuery["active"],
+	stock: (["in", "out"].includes(sp.get("stock") ?? "") ? sp.get("stock") : "") as ProductQuery["stock"],
+	sort: sp.get("sort") ?? "name",
+	page: Math.max(1, Number(sp.get("page")) || 1),
+	perPage: [50, 100, 200].includes(Number(sp.get("per"))) ? Number(sp.get("per")) : 50,
+	includeInactive: true,
+};
+
+let msg = "";
+let error = "";
+
+if (Astro.request.method === "POST") {
+	const fd = await Astro.request.formData();
+	const op = String(fd.get("op") ?? "");
+	if (op === "save") {
+		const ids = fd.getAll("row").map(Number).filter(Boolean);
+		const current = ids.length ? await all<Product>(db, `SELECT * FROM products WHERE id IN (${ids.map(() => "?").join(",")})`, ...ids) : [];
+		const stmts: D1PreparedStatement[] = [];
+		for (const p of current) {
+			const price = toSatang(String(fd.get(`price_${p.id}`) ?? ""));
+			const stock = Math.floor(Number(fd.get(`stock_${p.id}`)));
+			const category = String(fd.get(`cat_${p.id}`) ?? p.category);
+			const tags = normaliseTags(String(fd.get(`tags_${p.id}`) ?? ""));
+			const consult = fd.get(`consult_${p.id}`) === "on" ? 1 : 0;
+			const active = fd.get(`active_${p.id}`) === "on" ? 1 : 0;
+			const next = {
+				price_satang: Number.isFinite(price) && price >= 0 ? price : p.price_satang,
+				stock: Number.isFinite(stock) ? stock : p.stock,
+				category: CATEGORY_SLUGS.includes(category as never) ? category : p.category,
+				tags,
+				consult_required: consult,
+				active,
+			};
+			const changed = (Object.keys(next) as (keyof typeof next)[]).some((k) => String(next[k]) !== String(p[k]));
+			if (changed) {
+				stmts.push(
+					db
+						.prepare("UPDATE products SET price_satang=?, stock=?, category=?, tags=?, consult_required=?, active=?, updated_at=datetime('now') WHERE id=?")
+						.bind(next.price_satang, next.stock, next.category, next.tags, next.consult_required, next.active, p.id),
+				);
+			}
+		}
+		await batchChunks(db, stmts);
+		msg = stmts.length ? `Saved ${stmts.length} product${stmts.length === 1 ? "" : "s"}.` : "No changes to save.";
+	} else if (op === "bulk") {
+		const action = String(fd.get("action") ?? "");
+		const value = String(fd.get("value") ?? "").trim();
+		let ids: number[];
+		if (fd.get("scope") === "filter") {
+			const { sql, params } = buildProductWhere(filters);
+			ids = (await all<{ id: number }>(db, `SELECT id FROM products ${sql}`, ...params)).map((r) => r.id);
+		} else {
+			ids = fd.getAll("sel").map(Number).filter(Boolean);
+		}
+		if (!ids.length) error = "Select at least one product (tick the boxes), or choose “all products matching the filter”.";
+		else {
+			const products = await all<Product>(db, `SELECT id, tags, price_satang FROM products WHERE id IN (${ids.map(() => "?").join(",")})`, ...ids);
+			const stmts: D1PreparedStatement[] = [];
+			const upd = (sql: string, ...params: unknown[]) => stmts.push(db.prepare(`UPDATE products SET ${sql}, updated_at=datetime('now') WHERE id=?`).bind(...params));
+			for (const p of products) {
+				switch (action) {
+					case "category":
+						if (CATEGORY_SLUGS.includes(value as never)) upd("category=?", value, p.id);
+						break;
+					case "add_tags":
+						upd("tags=?", normaliseTags([...splitTags(p.tags), ...splitTags(normaliseTags(value))]), p.id);
+						break;
+					case "remove_tags": {
+						const rm = new Set(splitTags(normaliseTags(value)));
+						upd("tags=?", splitTags(p.tags).filter((x) => !rm.has(x)).join(","), p.id);
+						break;
+					}
+					case "consult_on":
+						upd("consult_required=1", p.id);
+						break;
+					case "consult_off":
+						upd("consult_required=0", p.id);
+						break;
+					case "show":
+						upd("active=1", p.id);
+						break;
+					case "hide":
+						upd("active=0", p.id);
+						break;
+					case "feature":
+						upd("featured=1", p.id);
+						break;
+					case "unfeature":
+						upd("featured=0", p.id);
+						break;
+					case "price_pct": {
+						const pct = Number(value.replace("%", ""));
+						if (Number.isFinite(pct)) upd("price_satang=?", Math.max(0, Math.round((p.price_satang * (100 + pct)) / 100)), p.id);
+						break;
+					}
+					case "price_set": {
+						const s = toSatang(value);
+						if (Number.isFinite(s) && s >= 0) upd("price_satang=?", s, p.id);
+						break;
+					}
+					case "delete":
+						if (value === "DELETE") stmts.push(db.prepare("DELETE FROM products WHERE id=?").bind(p.id));
+						break;
+				}
+			}
+			if (!stmts.length) error = action === "delete" ? "To delete, type DELETE in the value box." : "Nothing changed — check the action and value.";
+			else {
+				await batchChunks(db, stmts);
+				msg = `Updated ${stmts.length} product${stmts.length === 1 ? "" : "s"}.`;
+			}
+		}
+	}
+}
+
+const result = await queryProducts(db, filters);
+const tags = await allTags(db, true);
+
+function link(over: Record<string, string | number | null>) {
+	const p = new URLSearchParams(Astro.url.search);
+	for (const [k, v] of Object.entries(over)) {
+		if (v === null || v === "") p.delete(k);
+		else p.set(k, String(v));
+	}
+	return `/admin/products?${p.toString()}`;
+}
+---
+
+<Admin title="Products">
+	{msg && <div class="alert alert-ok">{msg}</div>}
+	{error && <div class="alert alert-error">{error}</div>}
+
+	<form method="get" class="toolbar card">
+		<div class="field" style="flex:2; min-width:220px"><label for="q">Search name, SKU, barcode or tag</label><input id="q" type="search" name="q" value={filters.q} placeholder="e.g. Sara, IT-0000455, 885…" autofocus /></div>
+		<div class="field">
+			<label for="category">Category</label>
+			<select id="category" name="category">
+				<option value="">All</option>
+				{CATEGORIES.map((c) => <option value={c.slug} selected={filters.category === c.slug}>{c.en}</option>)}
+			</select>
+		</div>
+		<div class="field">
+			<label for="tag">Tag</label>
+			<select id="tag" name="tag">
+				<option value="">All</option>
+				{tags.map((tg) => <option value={tg.tag} selected={filters.tag === tg.tag}>{tg.tag} ({tg.n})</option>)}
+			</select>
+		</div>
+		<div class="field">
+			<label for="consult">Consultation</label>
+			<select id="consult" name="consult">
+				<option value="">Any</option>
+				<option value="yes" selected={filters.consult === "yes"}>Consult only</option>
+				<option value="no" selected={filters.consult === "no"}>Buy online</option>
+			</select>
+		</div>
+		<div class="field">
+			<label for="active">On website</label>
+			<select id="active" name="active">
+				<option value="">Any</option>
+				<option value="yes" selected={filters.active === "yes"}>Shown</option>
+				<option value="no" selected={filters.active === "no"}>Hidden</option>
+			</select>
+		</div>
+		<div class="field">
+			<label for="stock">Stock</label>
+			<select id="stock" name="stock">
+				<option value="">Any</option>
+				<option value="in" selected={filters.stock === "in"}>In stock</option>
+				<option value="out" selected={filters.stock === "out"}>Out of stock</option>
+			</select>
+		</div>
+		<div class="field">
+			<label for="sort">Sort</label>
+			<select id="sort" name="sort">
+				<option value="name" selected={filters.sort === "name"}>Name</option>
+				<option value="price_asc" selected={filters.sort === "price_asc"}>Price ↑</option>
+				<option value="price_desc" selected={filters.sort === "price_desc"}>Price ↓</option>
+				<option value="stock" selected={filters.sort === "stock"}>Stock ↑</option>
+				<option value="updated" selected={filters.sort === "updated"}>Recently updated</option>
+				<option value="newest" selected={filters.sort === "newest"}>Newest</option>
+			</select>
+		</div>
+		<div class="field">
+			<label for="per">Per page</label>
+			<select id="per" name="per">
+				{[50, 100, 200].map((n) => <option value={n} selected={filters.perPage === n}>{n}</option>)}
+			</select>
+		</div>
+		<button class="btn btn-sm" type="submit">Filter</button>
+		<a class="btn btn-sm btn-ghost" href="/admin/products">Reset</a>
+		<a class="btn btn-sm btn-ghost" href="/admin/products/new">+ New product</a>
+	</form>
+
+	<form method="post" data-bulk-form>
+		<div class="card bulk">
+			<strong class="small">Bulk update</strong>
+			<select name="scope" aria-label="Apply to">
+				<option value="selected">Ticked products</option>
+				<option value="filter">All {result.total} products matching the filter</option>
+			</select>
+			<select name="action" aria-label="Action" data-action>
+				<option value="add_tags">Add tags</option>
+				<option value="remove_tags">Remove tags</option>
+				<option value="category">Move to category</option>
+				<option value="price_pct">Change price by %</option>
+				<option value="price_set">Set price (฿)</option>
+				<option value="consult_on">Require consultation</option>
+				<option value="consult_off">Allow online purchase</option>
+				<option value="show">Show on website</option>
+				<option value="hide">Hide from website</option>
+				<option value="feature">Feature on home page</option>
+				<option value="unfeature">Remove from featured</option>
+				<option value="delete">Delete permanently</option>
+			</select>
+			<input name="value" placeholder="tags, comma separated" data-value list="taglist" style="max-width:240px" />
+			<select name="value_cat" data-value-cat hidden aria-label="Category">
+				{CATEGORIES.map((c) => <option value={c.slug}>{c.en}</option>)}
+			</select>
+			<datalist id="taglist">{tags.map((tg) => <option value={tg.tag} />)}</datalist>
+			<button class="btn btn-sm btn-accent" name="op" value="bulk">Apply</button>
+			<span class="spacer"></span>
+			<span class="small muted" data-dirty-count></span>
+			<button class="btn btn-sm" name="op" value="save">Save table edits</button>
+		</div>
+
+		<div class="card" style="padding:0">
+			<div class="table-scroll">
+				<table class="table ptable">
+					<thead>
+						<tr>
+							<th><input type="checkbox" data-select-all aria-label="Select all" /></th>
+							<th>SKU</th>
+							<th>Product</th>
+							<th>Category</th>
+							<th>Price ฿</th>
+							<th>Stock</th>
+							<th title="Requires pharmacist consultation">Consult</th>
+							<th title="Shown on website">Shown</th>
+							<th>Tags</th>
+						</tr>
+					</thead>
+					<tbody>
+						{
+							result.items.map((p) => (
+								<tr class:list={{ hidden: !p.active }}>
+									<td>
+										<input type="checkbox" name="sel" value={p.id} aria-label={`Select ${p.name}`} />
+										<input type="hidden" name="row" value={p.id} />
+									</td>
+									<td class="tiny nowrap">{p.sku}</td>
+									<td class="pn">
+										<a href={`/admin/products/${p.id}`}>{p.name}</a>
+										<div class="tiny muted">{p.unit}{p.featured ? " · ★ featured" : ""}</div>
+									</td>
+									<td>
+										<select name={`cat_${p.id}`} aria-label="Category">
+											{CATEGORIES.map((c) => (
+												<option value={c.slug} selected={p.category === c.slug}>
+													{c.en.replace(" (Pharmacist Consultation)", "").replace("Over-the-Counter (OTC) Medicine", "OTC")}
+												</option>
+											))}
+										</select>
+									</td>
+									<td><input name={`price_${p.id}`} value={(p.price_satang / 100).toString()} inputmode="decimal" class="num" aria-label="Price" /></td>
+									<td><input name={`stock_${p.id}`} value={p.stock} inputmode="numeric" class="num sm" aria-label="Stock" /></td>
+									<td class="c"><input type="checkbox" name={`consult_${p.id}`} checked={p.consult_required === 1} aria-label="Consultation required" /></td>
+									<td class="c"><input type="checkbox" name={`active_${p.id}`} checked={p.active === 1} aria-label="Shown on website" /></td>
+									<td><input name={`tags_${p.id}`} value={p.tags} class="tags" aria-label="Tags" /></td>
+								</tr>
+							))
+						}
+					</tbody>
+				</table>
+			</div>
+			{result.items.length === 0 && <p class="muted" style="padding:16px">No products match.</p>}
+		</div>
+	</form>
+
+	<nav class="pager">
+		{result.page > 1 && <a class="btn btn-ghost btn-sm" href={link({ page: result.page - 1 })}>← Prev</a>}
+		<span class="small muted">Page {result.page} of {result.pages} · {result.total} products</span>
+		{result.page < result.pages && <a class="btn btn-ghost btn-sm" href={link({ page: result.page + 1 })}>Next →</a>}
+	</nav>
+	<p class="small" style="text-align:center"><a href={`/admin/export.csv${Astro.url.search}`}>Download these {result.total} products as CSV</a></p>
+</Admin>
+
+<script>
+	const form = document.querySelector<HTMLFormElement>("[data-bulk-form]")!;
+	const all = form.querySelector<HTMLInputElement>("[data-select-all]")!;
+	all.addEventListener("change", () => {
+		form.querySelectorAll<HTMLInputElement>('input[name="sel"]').forEach((c) => (c.checked = all.checked));
+	});
+
+	// Highlight edited rows and count them
+	const dirty = new Set<HTMLTableRowElement>();
+	const counter = form.querySelector<HTMLElement>("[data-dirty-count]")!;
+	form.querySelector("tbody")!.addEventListener("input", (e) => {
+		const el = e.target as HTMLInputElement;
+		if (el.name === "sel") return;
+		const tr = el.closest("tr")!;
+		tr.classList.add("dirty");
+		dirty.add(tr);
+		counter.textContent = `${dirty.size} row(s) edited — remember to save`;
+	});
+	form.querySelector("tbody")!.addEventListener("change", (e) => {
+		const el = e.target as HTMLInputElement;
+		if (el.name === "sel" || el.type !== "checkbox") return;
+		const tr = el.closest("tr")!;
+		tr.classList.add("dirty");
+		dirty.add(tr);
+		counter.textContent = `${dirty.size} row(s) edited — remember to save`;
+	});
+	window.addEventListener("beforeunload", (e) => {
+		if (dirty.size && !(form as any)._submitting) e.preventDefault();
+	});
+	form.addEventListener("submit", (e) => {
+		(form as any)._submitting = true;
+		const submitter = (e as SubmitEvent).submitter as HTMLButtonElement | null;
+		if (submitter?.value === "bulk") {
+			const action = form.querySelector<HTMLSelectElement>("[data-action]")!.value;
+			const scope = form.querySelector<HTMLSelectElement>('select[name="scope"]')!;
+			if (action === "category") form.querySelector<HTMLInputElement>("[data-value]")!.value = form.querySelector<HTMLSelectElement>("[data-value-cat]")!.value;
+			const label = scope.options[scope.selectedIndex].text;
+			if ((scope.value === "filter" || action === "delete") && !confirm(`Apply “${action}” to: ${label}?`)) {
+				e.preventDefault();
+				(form as any)._submitting = false;
+			}
+		}
+	});
+
+	// Switch value input depending on the action
+	const actionSel = form.querySelector<HTMLSelectElement>("[data-action]")!;
+	const valueIn = form.querySelector<HTMLInputElement>("[data-value]")!;
+	const valueCat = form.querySelector<HTMLSelectElement>("[data-value-cat]")!;
+	const placeholders: Record<string, string> = {
+		add_tags: "tags, comma separated",
+		remove_tags: "tags, comma separated",
+		price_pct: "e.g. 5 or -10",
+		price_set: "price in baht",
+		delete: "type DELETE",
+	};
+	function syncValue() {
+		const a = actionSel.value;
+		valueCat.hidden = a !== "category";
+		valueIn.hidden = a === "category" || !(a in placeholders);
+		valueIn.placeholder = placeholders[a] ?? "";
+	}
+	actionSel.addEventListener("change", syncValue);
+	syncValue();
+</script>
+
+<style>
+	.bulk {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+		flex-wrap: wrap;
+		position: sticky;
+		top: 58px;
+		z-index: 5;
+	}
+	.bulk select,
+	.bulk input {
+		width: auto;
+		min-height: 36px;
+		padding: 4px 8px;
+	}
+	.spacer {
+		flex: 1;
+	}
+	.ptable td {
+		padding: 6px 8px;
+	}
+	.ptable .pn {
+		min-width: 240px;
+		max-width: 380px;
+	}
+	.ptable .pn a {
+		color: var(--ink);
+		font-weight: 500;
+	}
+	.ptable .num {
+		width: 90px;
+		text-align: right;
+	}
+	.ptable .num.sm {
+		width: 70px;
+	}
+	.ptable .tags {
+		min-width: 200px;
+		font-size: 0.8rem;
+	}
+	.ptable .c {
+		text-align: center;
+	}
+	.ptable input[type="checkbox"] {
+		width: 18px;
+		height: 18px;
+	}
+	.ptable select {
+		width: 170px;
+		font-size: 0.82rem;
+	}
+	tr.hidden td {
+		background: #f7f7f5;
+		color: var(--muted);
+	}
+	tr.dirty td {
+		background: #fff8e6;
+	}
+</style>

@@ -1,0 +1,172 @@
+---
+import Icon from "./Icon.astro";
+import { CATEGORIES, baht, canBuyOnline, displayName, type Product } from "../lib/catalog";
+import { t } from "../lib/i18n";
+
+interface Props {
+	product: Product;
+}
+const { product: p } = Astro.props;
+const { lang, user, settings } = Astro.locals;
+const cat = CATEGORIES.find((c) => c.slug === p.category);
+const buyable = canBuyOnline(p);
+const out = p.stock <= 0;
+const pct = Number(settings.member_discount_pct) || 0;
+const memberPrice = Math.round(p.price_satang * (1 - pct / 100));
+const href = `/products/${encodeURIComponent(p.sku)}`;
+---
+
+<article class="pcard" style={`--c: var(--cat-${p.category}); --cs: var(--cat-${p.category}-soft)`}>
+	<a href={href} class="pimg" tabindex="-1" aria-hidden="true">
+		{
+			p.image_url ? (
+				<img src={p.image_url} alt="" loading="lazy" />
+			) : (
+				<span class="pimg-ph">
+					<Icon name={cat?.icon ?? "otc"} size={40} />
+					{p.unit && <span class="pimg-unit">{p.unit}</span>}
+				</span>
+			)
+		}
+	</a>
+	<div class="pbody">
+		<div class="pbadges">
+			{!buyable && <span class="badge badge-consult">{t(lang, "consultBadge")}</span>}
+			{buyable && out && <span class="badge badge-out">{t(lang, "outOfStock")}</span>}
+		</div>
+		<h3 class="pname"><a href={href}>{displayName(p, lang)}</a></h3>
+		<div class="pfoot">
+			{
+				buyable ? (
+					user && pct > 0 ? (
+						<div class="pprice">
+							<strong>{baht(memberPrice)}</strong>
+							<s class="tiny muted">{baht(p.price_satang)}</s>
+						</div>
+					) : (
+						<div class="pprice">
+							<strong>{baht(p.price_satang)}</strong>
+							{pct > 0 && <span class="tiny member">{t(lang, "memberPrice")} {baht(memberPrice)}</span>}
+						</div>
+					)
+				) : (
+					<div class="pprice muted small">{lang === "th" ? "สอบถามที่ร้าน" : "Ask in store"}</div>
+				)
+			}
+			{
+				buyable && !out ? (
+					<button class="btn btn-sm add" data-add-sku={p.sku} data-added-label={t(lang, "added")} aria-label={`${t(lang, "addToCart")}: ${p.name}`}>
+						<Icon name="cart" size={16} />
+						<span class="add-label">{t(lang, "addToCart")}</span>
+					</button>
+				) : (
+					<a class="btn btn-sm btn-ghost" href={href}>
+						{t(lang, "details")}
+					</a>
+				)
+			}
+		</div>
+	</div>
+</article>
+
+<style>
+	.pcard {
+		background: var(--card);
+		border: 1px solid var(--line);
+		border-radius: var(--radius);
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+		transition: box-shadow 0.15s, border-color 0.15s;
+	}
+	.pcard:hover {
+		box-shadow: var(--shadow);
+		border-color: #cfdcd6;
+	}
+	.pimg {
+		display: block;
+		aspect-ratio: 4 / 3;
+		background: var(--cs);
+	}
+	.pimg img {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		background: #fff;
+	}
+	.pimg-ph {
+		width: 100%;
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		color: var(--c);
+		background:
+			radial-gradient(circle at 80% 15%, rgba(255, 255, 255, 0.7) 0 22%, transparent 23%),
+			var(--cs);
+	}
+	.pimg-unit {
+		font-size: 0.72rem;
+		color: var(--c);
+		opacity: 0.8;
+		border: 1px solid currentColor;
+		border-radius: 999px;
+		padding: 0 8px;
+	}
+	.pbody {
+		padding: 12px 12px 14px;
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+	}
+	.pbadges {
+		min-height: 0;
+		display: flex;
+		gap: 4px;
+		flex-wrap: wrap;
+		margin-bottom: 4px;
+	}
+	.pname {
+		font-size: 0.93rem;
+		font-weight: 500;
+		line-height: 1.4;
+		margin: 0 0 10px;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+		overflow-wrap: anywhere;
+	}
+	.pname a {
+		color: var(--ink);
+		text-decoration: none;
+	}
+	.pname a:hover {
+		color: var(--brand);
+	}
+	.pfoot {
+		margin-top: auto;
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 8px;
+		flex-wrap: wrap;
+	}
+	.pprice strong {
+		font-size: 1.08rem;
+		display: block;
+	}
+	.member {
+		color: var(--accent);
+	}
+	@media (max-width: 480px) {
+		.add-label {
+			display: none;
+		}
+		.add {
+			padding: 0 10px;
+		}
+	}
+</style>

@@ -1,0 +1,123 @@
+---
+import Base from "../layouts/Base.astro";
+import Icon from "../components/Icon.astro";
+import { t } from "../lib/i18n";
+
+const { lang, settings } = Astro.locals;
+const shopName = lang === "th" ? settings.shop_name_th : settings.shop_name_en;
+const lat = settings.map_lat;
+const lng = settings.map_lng;
+const embed = `https://www.google.com/maps?q=${encodeURIComponent(`${lat},${lng}`)}&z=17&hl=${lang}&output=embed`;
+const mapsLink = settings.map_link || `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+const tel = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
+const links = [
+	{ name: "LINE", url: settings.line_url, cls: "btn-line", icon: "chat" },
+	{ name: "Shopee", url: settings.shopee_url, cls: "shopee", icon: "store" },
+	{ name: "Lazada", url: settings.lazada_url, cls: "lazada", icon: "store" },
+	{ name: "Facebook", url: settings.facebook_url, cls: "fb", icon: "globe" },
+	{ name: "Wongnai", url: settings.wongnai_url, cls: "wongnai", icon: "globe" },
+].filter((l) => l.url);
+---
+
+<Base title={t(lang, "contact")} description={`${shopName} — ${lang === "th" ? settings.address_th : settings.address_en}`}>
+	<div class="wrap">
+		<div class="page-head">
+			<h1>{t(lang, "contact")}</h1>
+			<p class="muted">{t(lang, "tagline")}</p>
+		</div>
+		<div class="contact">
+			<div class="info card">
+				<h2>{shopName}</h2>
+				<p class="row"><Icon name="map" /><span><strong>{t(lang, "address")}</strong><br />{lang === "th" ? settings.address_th : settings.address_en}</span></p>
+				<p class="row"><Icon name="clock" /><span><strong>{t(lang, "openingHours")}</strong><br />{lang === "th" ? settings.hours_th : settings.hours_en}</span></p>
+				<p class="row"><Icon name="phone" /><span><strong>{t(lang, "callUs")}</strong><br /><a href={tel}>{settings.phone}</a></span></p>
+				{settings.email && <p class="row"><Icon name="chat" /><span><strong>{t(lang, "email")}</strong><br /><a href={`mailto:${settings.email}`}>{settings.email}</a></span></p>}
+				<div class="btns">
+					<a class="btn" href={mapsLink} target="_blank" rel="noopener"><Icon name="map" size={18} /> {t(lang, "openInMaps")}</a>
+					<a class="btn btn-ghost" href={tel}><Icon name="phone" size={18} /> {settings.phone}</a>
+				</div>
+				{
+					links.length > 0 && (
+						<>
+							<h3 class="also">{t(lang, "alsoOn")}</h3>
+							<div class="btns">
+								{links.map((l) => (
+									<a class:list={["btn", "btn-sm", l.cls]} href={l.url} target="_blank" rel="noopener">
+										<Icon name={l.icon} size={16} /> {l.name}
+									</a>
+								))}
+							</div>
+						</>
+					)
+				}
+			</div>
+			<div class="map">
+				<iframe
+					title={t(lang, "findUs")}
+					src={embed}
+					loading="lazy"
+					referrerpolicy="no-referrer-when-downgrade"
+					allowfullscreen></iframe>
+			</div>
+		</div>
+	</div>
+</Base>
+
+<style>
+	.contact {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+		gap: 24px;
+		align-items: stretch;
+	}
+	@media (max-width: 860px) {
+		.contact {
+			grid-template-columns: 1fr;
+		}
+	}
+	.row {
+		display: flex;
+		gap: 12px;
+		align-items: flex-start;
+	}
+	.row :global(svg) {
+		flex: none;
+		color: var(--brand);
+		margin-top: 3px;
+	}
+	.btns {
+		display: flex;
+		gap: 10px;
+		flex-wrap: wrap;
+		margin-top: 14px;
+	}
+	.also {
+		margin-top: 24px;
+	}
+	.map {
+		min-height: 420px;
+		border-radius: var(--radius);
+		overflow: hidden;
+		border: 1px solid var(--line);
+		background: #e9efec;
+	}
+	.map iframe {
+		width: 100%;
+		height: 100%;
+		min-height: 420px;
+		border: 0;
+		display: block;
+	}
+	.shopee {
+		background: #ee4d2d;
+	}
+	.lazada {
+		background: #0f146d;
+	}
+	.fb {
+		background: #1877f2;
+	}
+	.wongnai {
+		background: #1c1c1c;
+	}
+</style>

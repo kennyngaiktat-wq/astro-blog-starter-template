@@ -1,0 +1,70 @@
+---
+import Admin from "../../../layouts/Admin.astro";
+import { all, first } from "../../../lib/db";
+import { baht } from "../../../lib/catalog";
+import { ORDER_STATUSES, type Order } from "../../../lib/orders";
+
+const { env } = Astro.locals;
+const sp = Astro.url.searchParams;
+const status = (ORDER_STATUSES as readonly string[]).includes(sp.get("status") ?? "") ? sp.get("status")! : "";
+const q = (sp.get("q") ?? "").trim();
+const page = Math.max(1, Number(sp.get("page")) || 1);
+const per = 50;
+const where: string[] = [];
+const params: unknown[] = [];
+if (status) {
+	where.push("status = ?");
+	params.push(status);
+}
+if (q) {
+	where.push("(order_no LIKE ? OR name LIKE ? OR email LIKE ? OR phone LIKE ?)");
+	params.push(...Array(4).fill(`%${q}%`));
+}
+const w = where.length ? `WHERE ${where.join(" AND ")}` : "";
+const total = (await first<{ n: number }>(env.DB, `SELECT COUNT(*) n FROM orders ${w}`, ...params))?.n ?? 0;
+const orders = await all<Order>(env.DB, `SELECT * FROM orders ${w} ORDER BY id DESC LIMIT ? OFFSET ?`, ...params, per, (page - 1) * per);
+const pages = Math.max(1, Math.ceil(total / per));
+const qs = (p: number) => `?status=${status}&q=${encodeURIComponent(q)}&page=${p}`;
+---
+
+<Admin title="Orders">
+	<form method="get" class="toolbar card">
+		<div class="field" style="flex:1; min-width:220px"><label for="q">Search order no., name, email or phone</label><input id="q" type="search" name="q" value={q} /></div>
+		<div class="field">
+			<label for="status">Status</label>
+			<select id="status" name="status">
+				<option value="">All</option>
+				{ORDER_STATUSES.map((s) => <option value={s} selected={s === status}>{s.replace("_", " ")}</option>)}
+			</select>
+		</div>
+		<button class="btn btn-sm">Filter</button>
+	</form>
+	<div class="card" style="padding:0">
+		<div class="table-scroll">
+			<table class="table">
+				<thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Delivery</th><th>Payment</th><th>Total</th><th>Status</th></tr></thead>
+				<tbody>
+					{
+						orders.map((o) => (
+							<tr>
+								<td><a href={`/admin/orders/${o.id}`}>{o.order_no}</a></td>
+								<td class="small nowrap">{o.created_at.slice(0, 16)}</td>
+								<td>{o.name}<div class="tiny muted">{o.phone}{o.customer_id ? " · member" : ""}</div></td>
+								<td class="small">{o.delivery_method === "pickup" ? "Pickup" : o.province}</td>
+								<td class="small">{o.payment_method}</td>
+								<td>{baht(o.total_satang)}</td>
+								<td><span class:list={["badge", { "badge-amber": o.status === "paid" || o.status === "packing", "badge-out": o.status === "awaiting_payment" }]}>{o.status.replace("_", " ")}</span></td>
+							</tr>
+						))
+					}
+				</tbody>
+			</table>
+		</div>
+		{orders.length === 0 && <p class="muted" style="padding:16px">No orders.</p>}
+	</div>
+	<nav class="pager">
+		{page > 1 && <a class="btn btn-ghost btn-sm" href={qs(page - 1)}>← Prev</a>}
+		<span class="small muted">Page {page} of {pages} · {total} orders</span>
+		{page < pages && <a class="btn btn-ghost btn-sm" href={qs(page + 1)}>Next →</a>}
+	</nav>
+</Admin>

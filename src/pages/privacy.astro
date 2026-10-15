@@ -1,0 +1,45 @@
+---
+import Base from "../layouts/Base.astro";
+import { t } from "../lib/i18n";
+const { lang, settings } = Astro.locals;
+const name = lang === "th" ? settings.shop_name_th : settings.shop_name_en;
+---
+
+<Base title={t(lang, "privacy")}>
+	<div class="wrap prose">
+		<div class="page-head"><h1>{t(lang, "privacy")}</h1></div>
+		{
+			lang === "th" ? (
+				<>
+					<p>{name} ให้ความสำคัญกับข้อมูลส่วนบุคคลของคุณตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA)</p>
+					<h2>ข้อมูลที่เราเก็บ</h2>
+					<p>ชื่อ-นามสกุล อีเมล เบอร์โทรศัพท์ ที่อยู่จัดส่ง ช่องทางชำระเงินที่คุณเลือกใช้ประจำ และประวัติการสั่งซื้อ เราไม่เก็บหมายเลขบัตรของคุณ การชำระเงินดำเนินการโดย Opn Payments</p>
+					<h2>วัตถุประสงค์</h2>
+					<p>เพื่อจัดส่งสินค้า ติดต่อเกี่ยวกับคำสั่งซื้อ ให้ส่วนลดสมาชิก และ (หากคุณยินยอม) แจ้งข่าวสารโปรโมชั่น</p>
+					<h2>สิทธิของคุณ</h2>
+					<p>คุณสามารถขอเข้าถึง แก้ไข หรือลบข้อมูลของคุณได้ โดยแก้ไขในหน้าบัญชีของคุณ หรือติดต่อร้านที่ {settings.phone}</p>
+				</>
+			) : (
+				<>
+					<p>{name} protects your personal data in line with Thailand's Personal Data Protection Act B.E. 2562 (PDPA).</p>
+					<h2>What we collect</h2>
+					<p>Your name, email, phone number, shipping address, preferred payment method and order history. We never store your card number — payments are processed by Opn Payments.</p>
+					<h2>Why</h2>
+					<p>To deliver your orders, contact you about them, give you the member discount and, if you agree, send you news and promotions.</p>
+					<h2>Your rights</h2>
+					<p>You can access, correct or delete your data on your account page, or by contacting the shop on {settings.phone}.</p>
+				</>
+			)
+		}
+	</div>
+</Base>
+
+<style>
+	.prose {
+		max-width: 760px;
+	}
+	.prose h2 {
+		font-size: 1.15rem;
+		margin-top: 1.6em;
+	}
+</style>

@@ -1,0 +1,13 @@
+---
+import Base from "../layouts/Base.astro";
+const { lang } = Astro.locals;
+Astro.response.status = 404;
+---
+
+<Base title={lang === "th" ? "ไม่พบหน้านี้" : "Page not found"} noindex>
+	<div class="wrap" style="text-align:center; padding: 80px 16px">
+		<h1>{lang === "th" ? "ไม่พบหน้าที่คุณต้องการ" : "We couldn't find that page"}</h1>
+		<p class="muted">{lang === "th" ? "สินค้าอาจถูกนำออกแล้ว หรือลิงก์ไม่ถูกต้อง" : "The product may have been removed, or the link is wrong."}</p>
+		<p><a class="btn" href="/products">{lang === "th" ? "ดูสินค้าทั้งหมด" : "Browse all products"}</a></p>
+	</div>
+</Base>

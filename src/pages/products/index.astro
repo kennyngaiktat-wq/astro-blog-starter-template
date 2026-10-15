@@ -1,0 +1,161 @@
+---
+import Base from "../../layouts/Base.astro";
+import ProductCard from "../../components/ProductCard.astro";
+import { CATEGORIES, CATEGORY_SLUGS, categoryName, queryProducts, tagLabel, splitTags, type CategorySlug } from "../../lib/catalog";
+import { all } from "../../lib/db";
+import { t } from "../../lib/i18n";
+
+const { lang, env } = Astro.locals;
+const sp = Astro.url.searchParams;
+const category = CATEGORY_SLUGS.includes(sp.get("category") as CategorySlug) ? (sp.get("category") as string) : "";
+const tag = (sp.get("tag") ?? "").trim().toLowerCase();
+const q = (sp.get("q") ?? "").trim().slice(0, 80);
+const sort = sp.get("sort") ?? "default";
+const page = Math.max(1, Number(sp.get("page")) || 1);
+
+const result = await queryProducts(env.DB, { q, category, tag, sort, page, perPage: 24 });
+
+// Tags available within the current category
+const tagRows = await all<{ tags: string }>(env.DB, `SELECT tags FROM products WHERE active = 1 AND tags != '' ${category ? "AND category = ?" : ""}`, ...(category ? [category] : []));
+const tagCounts = new Map<string, number>();
+for (const r of tagRows) for (const tg of splitTags(r.tags)) tagCounts.set(tg, (tagCounts.get(tg) ?? 0) + 1);
+const tags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 18);
+
+const cat = CATEGORIES.find((c) => c.slug === category);
+const heading = q ? `“${q}”` : tag ? tagLabel(tag, lang) : cat ? cat[lang] : t(lang, "allProducts");
+
+function link(over: Record<string, string | number | null>) {
+	const p = new URLSearchParams();
+	const base: Record<string, string | number | null> = { q, category, tag, sort: sort === "default" ? null : sort, page: null };
+	for (const [k, v] of Object.entries({ ...base, ...over })) if (v) p.set(k, String(v));
+	const s = p.toString();
+	return `/products${s ? `?${s}` : ""}`;
+}
+---
+
+<Base title={heading} description={cat ? (lang === "th" ? cat.descTh : cat.descEn) : undefined}>
+	<div class="wrap">
+		<div class="page-head">
+			<h1>{heading}</h1>
+			{cat && <p class="muted">{lang === "th" ? cat.descTh : cat.descEn}</p>}
+			{
+				category === "other_medication" && (
+					<div class="alert alert-warn">{t(lang, "consultNote")}</div>
+				)
+			}
+		</div>
+
+		<div class="filters">
+			<div class="cat-tabs">
+				<a class:list={["chip", { on: !category }]} href={link({ category: null, tag: null })}>{t(lang, "allProducts")}</a>
+				{CATEGORIES.map((c) => <a class:list={["chip", { on: category === c.slug }]} href={link({ category: c.slug, tag: null })}>{c[lang]}</a>)}
+			</div>
+			{
+				tags.length > 0 && (
+					<div class="tag-row">
+						{tag && (
+							<a class="chip on" href={link({ tag: null })}>
+								✕ {tagLabel(tag, lang)}
+							</a>
+						)}
+						{tags
+							.filter(([tg]) => tg !== tag)
+							.map(([tg]) => (
+								<a class="chip" href={link({ tag: tg })}>
+									{tagLabel(tg, lang)}
+								</a>
+							))}
+					</div>
+				)
+			}
+			<form method="get" action="/products" class="sort-row">
+				{q && <input type="hidden" name="q" value={q} />}
+				{category && <input type="hidden" name="category" value={category} />}
+				{tag && <input type="hidden" name="tag" value={tag} />}
+				<span class="muted small">{t(lang, "results", { n: result.total.toLocaleString() })}{category && q ? ` · ${categoryName(category, lang)}` : ""}</span>
+				<label class="sort">
+					<span class="sr-only">{t(lang, "sortBy")}</span>
+					<select name="sort" onchange="this.form.submit()">
+						<option value="default" selected={sort === "default"}>{t(lang, "sortDefault")}</option>
+						<option value="name" selected={sort === "name"}>{t(lang, "sortName")}</option>
+						<option value="price_asc" selected={sort === "price_asc"}>{t(lang, "sortPriceAsc")}</option>
+						<option value="price_desc" selected={sort === "price_desc"}>{t(lang, "sortPriceDesc")}</option>
+					</select>
+				</label>
+			</form>
+		</div>
+
+		{
+			result.items.length === 0 ? (
+				<div class="card empty">
+					<p>{t(lang, "noResults")}</p>
+					<a class="btn btn-ghost" href="/products">
+						{t(lang, "allProducts")}
+					</a>
+				</div>
+			) : (
+				<div class="grid-products">
+					{result.items.map((p) => (
+						<ProductCard product={p} />
+					))}
+				</div>
+			)
+		}
+
+		{
+			result.pages > 1 && (
+				<nav class="pager" aria-label="Pages">
+					{result.page > 1 && (
+						<a class="btn btn-ghost btn-sm" href={link({ page: result.page - 1 })}>
+							← {t(lang, "prev")}
+						</a>
+					)}
+					<span class="small muted">
+						{result.page} / {result.pages}
+					</span>
+					{result.page < result.pages && (
+						<a class="btn btn-ghost btn-sm" href={link({ page: result.page + 1 })}>
+							{t(lang, "next")} →
+						</a>
+					)}
+				</nav>
+			)
+		}
+	</div>
+</Base>
+
+<style>
+	.filters {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		margin: 10px 0 18px;
+	}
+	.cat-tabs,
+	.tag-row {
+		display: flex;
+		gap: 8px;
+		overflow-x: auto;
+		padding-bottom: 4px;
+		scrollbar-width: thin;
+	}
+	.tag-row .chip {
+		font-size: 0.82rem;
+		padding: 4px 11px;
+	}
+	.sort-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 12px;
+	}
+	.sort select {
+		min-height: 38px;
+		padding: 6px 10px;
+		width: auto;
+	}
+	.empty {
+		text-align: center;
+		padding: 40px;
+	}
+</style>

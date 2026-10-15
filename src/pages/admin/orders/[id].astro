@@ -1,0 +1,97 @@
+---
+import Admin from "../../../layouts/Admin.astro";
+import { first, run } from "../../../lib/db";
+import { baht } from "../../../lib/catalog";
+import { ORDER_STATUSES, getItems, markPaid, refreshOrderPayment, type Order } from "../../../lib/orders";
+import { str } from "../../../lib/forms";
+
+const { env } = Astro.locals;
+const id = Number(Astro.params.id);
+let order = await first<Order>(env.DB, "SELECT * FROM orders WHERE id = ?", id);
+if (!order) return Astro.redirect("/admin/orders");
+let msg = "";
+
+if (Astro.request.method === "POST") {
+	const fd = await Astro.request.formData();
+	const op = fd.get("op");
+	if (op === "save") {
+		const status = String(fd.get("status"));
+		if (status === "paid" && (order.status === "awaiting_payment" || order.status === "failed")) {
+			await markPaid(env.DB, order, String(fd.get("manual_method") || order.payment_method || "manual"));
+		}
+		await run(
+			env.DB,
+			"UPDATE orders SET status = ?, tracking_no = ?, admin_notes = ?, updated_at = datetime('now') WHERE id = ?",
+			(ORDER_STATUSES as readonly string[]).includes(status) ? status : order.status,
+			str(fd, "tracking_no", 100) || null,
+			String(fd.get("admin_notes") ?? "").slice(0, 2000) || null,
+			id,
+		);
+		msg = "Saved.";
+	} else if (op === "check") {
+		await refreshOrderPayment(env.DB, env.OPN_SECRET_KEY, order);
+		msg = "Checked payment status with Opn.";
+	}
+	order = (await first<Order>(env.DB, "SELECT * FROM orders WHERE id = ?", id))!;
+}
+const items = await getItems(env.DB, id);
+const customerLink = order.customer_id ? `/admin/customers/${order.customer_id}` : null;
+---
+
+<Admin title={`Order ${order.order_no}`}>
+	<p><a href="/admin/orders">← All orders</a> · <a href={`/order/${order.order_no}?k=${order.access_key}`} target="_blank">Customer view ↗</a></p>
+	{msg && <div class="alert alert-ok">{msg}</div>}
+	<div class="grid-2" style="gap:16px; align-items:start">
+		<div>
+			<section class="card">
+				<table class="table">
+					<thead><tr><th>Item</th><th>SKU</th><th>Qty</th><th>Price</th><th>Line</th></tr></thead>
+					<tbody>
+						{items.map((i) => <tr><td>{i.name}</td><td class="tiny">{i.sku}</td><td>{i.qty}</td><td>{baht(i.price_satang)}</td><td>{baht(i.price_satang * i.qty)}</td></tr>)}
+						<tr><td colspan="4">Subtotal</td><td>{baht(order.subtotal_satang)}</td></tr>
+						{order.discount_satang > 0 && <tr><td colspan="4">Member discount</td><td>−{baht(order.discount_satang)}</td></tr>}
+						<tr><td colspan="4">Shipping</td><td>{baht(order.shipping_satang)}</td></tr>
+						<tr><td colspan="4"><strong>Total</strong></td><td><strong>{baht(order.total_satang)}</strong></td></tr>
+					</tbody>
+				</table>
+			</section>
+			<section class="card small">
+				<h2 class="h3">Customer</h2>
+				<p>
+					<strong>{order.name}</strong> {customerLink && <a href={customerLink}>(member profile)</a>}<br />
+					{order.phone} · {order.email}
+				</p>
+				<p>
+					<strong>{order.delivery_method === "pickup" ? "Pick up in store" : "Deliver to:"}</strong><br />
+					{order.delivery_method === "delivery" && <>{order.address_line} {order.subdistrict} {order.district} {order.province} {order.postcode}</>}
+				</p>
+				{order.note && <p><strong>Customer note:</strong> {order.note}</p>}
+				<p class="muted">Created {order.created_at} · Paid {order.paid_at ?? "—"} · Payment: {order.payment_method ?? "—"} {order.charge_id && <>· Opn charge <code>{order.charge_id}</code></>}</p>
+			</section>
+		</div>
+		<div>
+			<form method="post" class="card">
+				<input type="hidden" name="op" value="save" />
+				<div class="field">
+					<label for="status">Status</label>
+					<select id="status" name="status">
+						{ORDER_STATUSES.map((s) => <option value={s} selected={order!.status === s}>{s.replace("_", " ")}</option>)}
+					</select>
+					<p class="tiny muted">Setting an unpaid order to “paid” (e.g. cash or bank transfer) also takes the items out of stock.</p>
+				</div>
+				<div class="field"><label for="tracking_no">Tracking number</label><input id="tracking_no" name="tracking_no" value={order.tracking_no ?? ""} /></div>
+				<div class="field"><label for="admin_notes">Internal notes</label><textarea id="admin_notes" name="admin_notes">{order.admin_notes ?? ""}</textarea></div>
+				<button class="btn">Save</button>
+			</form>
+			{
+				order.charge_id && order.status === "awaiting_payment" && (
+					<form method="post" class="card">
+						<input type="hidden" name="op" value="check" />
+						<p class="small">Customer says they paid? Check the charge with Opn.</p>
+						<button class="btn btn-ghost btn-sm">Check payment now</button>
+					</form>
+				)
+			}
+		</div>
+	</div>
+</Admin>

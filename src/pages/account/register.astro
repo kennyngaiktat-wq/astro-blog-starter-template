@@ -1,0 +1,99 @@
+---
+import Base from "../../layouts/Base.astro";
+import { t } from "../../lib/i18n";
+import { first } from "../../lib/db";
+import { createCustomerSession, hashPassword } from "../../lib/auth";
+import { isEmail, PREFERRED_PAYMENTS, safeNext, str } from "../../lib/forms";
+
+const { lang, env, user, settings } = Astro.locals;
+const next = safeNext(Astro.url.searchParams.get("next"));
+if (user) return Astro.redirect(next);
+const pct = Number(settings.member_discount_pct) || 0;
+
+let error = "";
+const v: Record<string, string> = {};
+if (Astro.request.method === "POST") {
+	const fd = await Astro.request.formData();
+	for (const k of ["name", "email", "phone", "address_line", "subdistrict", "district", "province", "postcode", "preferred_payment"]) v[k] = str(fd, k);
+	v.email = v.email.toLowerCase();
+	const password = String(fd.get("password") ?? "");
+	const consent = fd.get("consent") === "on";
+	const marketing = fd.get("marketing") === "on" ? 1 : 0;
+	if (!v.name || !isEmail(v.email) || !v.phone || !v.address_line || !v.district || !v.province || !v.postcode || !consent) {
+		error = t(lang, "required");
+	} else if (password.length < 8) {
+		error = t(lang, "passwordShort");
+	} else if (await first(env.DB, "SELECT id FROM customers WHERE email = ?", v.email)) {
+		error = t(lang, "emailTaken");
+	} else {
+		const pay = (PREFERRED_PAYMENTS as readonly string[]).includes(v.preferred_payment) ? v.preferred_payment : "promptpay";
+		const row = await env.DB.prepare(
+			`INSERT INTO customers (email, password_hash, name, phone, address_line, subdistrict, district, province, postcode, preferred_payment, marketing_opt_in)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+		)
+			.bind(v.email, await hashPassword(password), v.name, v.phone, v.address_line, v.subdistrict, v.district, v.province, v.postcode, pay, marketing)
+			.first<{ id: number }>();
+		await createCustomerSession(env.DB, Astro.cookies, row!.id, Astro.url.protocol === "https:");
+		return Astro.redirect(next);
+	}
+}
+---
+
+<Base title={t(lang, "register")} noindex>
+	<div class="wrap auth">
+		<div class="card">
+			<h1>{t(lang, "register")}</h1>
+			{pct > 0 && <p class="perk">{t(lang, "memberBanner", { pct })}</p>}
+			{error && <div class="alert alert-error">{error}</div>}
+			<form method="post">
+				<div class="field"><label for="name">{t(lang, "name")} *</label><input id="name" name="name" required autocomplete="name" value={v.name} /></div>
+				<div class="grid-2">
+					<div class="field"><label for="phone">{t(lang, "phone")} *</label><input id="phone" name="phone" type="tel" required autocomplete="tel" value={v.phone} /></div>
+					<div class="field"><label for="email">{t(lang, "email")} *</label><input id="email" name="email" type="email" required autocomplete="email" value={v.email} /></div>
+				</div>
+				<div class="field"><label for="password">{t(lang, "password")} *</label><input id="password" name="password" type="password" required minlength="8" autocomplete="new-password" /></div>
+				<h2 class="h3">{t(lang, "shippingAddress")}</h2>
+				<div class="field"><label for="address_line">{t(lang, "addressLine")} *</label><input id="address_line" name="address_line" required autocomplete="street-address" value={v.address_line} /></div>
+				<div class="grid-2">
+					<div class="field"><label for="subdistrict">{t(lang, "subdistrict")}</label><input id="subdistrict" name="subdistrict" value={v.subdistrict} /></div>
+					<div class="field"><label for="district">{t(lang, "district")} *</label><input id="district" name="district" required value={v.district} /></div>
+					<div class="field"><label for="province">{t(lang, "province")} *</label><input id="province" name="province" required value={v.province} /></div>
+					<div class="field"><label for="postcode">{t(lang, "postcode")} *</label><input id="postcode" name="postcode" required inputmode="numeric" maxlength="5" value={v.postcode} /></div>
+				</div>
+				<div class="field">
+					<label for="preferred_payment">{t(lang, "preferredPayment")}</label>
+					<select id="preferred_payment" name="preferred_payment">
+						<option value="promptpay" selected={v.preferred_payment !== "googlepay" && v.preferred_payment !== "card"}>{t(lang, "payPromptPay")}</option>
+						<option value="googlepay" selected={v.preferred_payment === "googlepay"}>{t(lang, "payGooglePay")}</option>
+						<option value="card" selected={v.preferred_payment === "card"}>{t(lang, "payCard")}</option>
+					</select>
+				</div>
+				<label class="check small field"><input type="checkbox" name="consent" required /> <span>{t(lang, "pdpaConsent")} (<a href="/privacy" target="_blank">{t(lang, "privacy")}</a>) *</span></label>
+				<label class="check small field"><input type="checkbox" name="marketing" /> {t(lang, "marketingOptIn")}</label>
+				<button class="btn btn-block" type="submit">{t(lang, "register")}</button>
+			</form>
+			<p class="small">{t(lang, "haveAccount")} <a href={`/account/login?next=${encodeURIComponent(next)}`}>{t(lang, "login")}</a></p>
+		</div>
+	</div>
+</Base>
+
+<style>
+	.auth {
+		max-width: 620px;
+		padding-top: 36px;
+	}
+	h1 {
+		font-size: 1.6rem;
+	}
+	.h3 {
+		font-size: 1.05rem;
+		margin-top: 10px;
+	}
+	.perk {
+		background: var(--accent-soft);
+		color: #a03d1c;
+		font-weight: 600;
+		padding: 10px 14px;
+		border-radius: var(--radius-sm);
+	}
+</style>

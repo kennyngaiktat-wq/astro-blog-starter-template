@@ -1,5 +1,6 @@
 {
-	"name": "astro-blog-starter-template",
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "big-pharma-group",
 	"compatibility_date": "2025-10-08",
 	"compatibility_flags": ["nodejs_compat"],
 	"main": "./dist/_worker.js/index.js",
@@ -10,5 +11,15 @@
 	"observability": {
 		"enabled": true
 	},
-	"upload_source_maps": true
+	"upload_source_maps": true,
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "big-pharma-db"
+		}
+	],
+	"vars": {
+		"SITE_URL": "https://bigpharmagroup.com"
+	},
+	"keep_vars": true
 }

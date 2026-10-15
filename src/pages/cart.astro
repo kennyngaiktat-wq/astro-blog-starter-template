@@ -1,0 +1,227 @@
+---
+import Base from "../layouts/Base.astro";
+import { t } from "../lib/i18n";
+import { baht } from "../lib/catalog";
+
+const { lang, user, settings } = Astro.locals;
+const pct = Number(settings.member_discount_pct) || 0;
+const freeMin = Number(settings.free_shipping_min) || 0;
+const labels = {
+	remove: t(lang, "remove"),
+	empty: t(lang, "emptyCart"),
+	changed: t(lang, "priceChanged"),
+	unit: t(lang, "unit"),
+	free: t(lang, "free"),
+	lang,
+};
+---
+
+<Base title={t(lang, "cart")} noindex>
+	<div class="wrap">
+		<div class="page-head"><h1>{t(lang, "cart")}</h1></div>
+		<div class="cart-layout" data-cart-root data-labels={JSON.stringify(labels)}>
+			<section>
+				<div class="alert alert-warn" data-changed hidden></div>
+				<div class="card loading" data-lines><p class="muted">…</p></div>
+				<p><a href="/products">← {t(lang, "continueShopping")}</a></p>
+			</section>
+			<aside class="card summary" data-summary hidden>
+				<dl>
+					<div><dt>{t(lang, "subtotal")}</dt><dd data-subtotal></dd></div>
+					<div class="disc" data-discount-row hidden><dt>{t(lang, "discount")} ({pct}%)</dt><dd data-discount></dd></div>
+					<div><dt>{t(lang, "shipping")}</dt><dd data-shipping></dd></div>
+					<div class="tot"><dt>{t(lang, "total")}</dt><dd data-total></dd></div>
+				</dl>
+				{freeMin > 0 && <p class="tiny muted">{t(lang, "freeShippingOver", { amt: baht(freeMin * 100) })}</p>}
+				{
+					!user && pct > 0 && (
+						<p class="member-hint small">
+							<a href="/account/login?next=/cart">{t(lang, "loginForDiscount", { pct })}</a> · <a href="/account/register?next=/cart">{t(lang, "register")}</a>
+						</p>
+					)
+				}
+				<a class="btn btn-block" href="/checkout">{t(lang, "checkout")}</a>
+			</aside>
+		</div>
+	</div>
+</Base>
+
+<script>
+	import { readCart, setQty, writeCart } from "../lib/cart-client";
+
+	const root = document.querySelector<HTMLElement>("[data-cart-root]")!;
+	const L = JSON.parse(root.dataset.labels!);
+	const linesEl = root.querySelector<HTMLElement>("[data-lines]")!;
+	const summary = root.querySelector<HTMLElement>("[data-summary]")!;
+	const changed = root.querySelector<HTMLElement>("[data-changed]")!;
+	const fmt = (s: number) => "฿" + (s / 100).toLocaleString("en-US", { minimumFractionDigits: s % 100 ? 2 : 0, maximumFractionDigits: 2 });
+	const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+
+	async function render() {
+		const cart = readCart();
+		const res = await fetch("/api/quote", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ cart, delivery: "delivery" }),
+		});
+		const q = await res.json();
+		if (q.removed.length || q.adjusted.length) {
+			const fixed: Record<string, number> = {};
+			for (const l of q.lines) fixed[l.sku] = l.qty;
+			writeCart(fixed);
+			changed.textContent = L.changed;
+			changed.hidden = false;
+		}
+		linesEl.classList.remove("loading");
+		if (!q.lines.length) {
+			linesEl.innerHTML = `<p class="muted">${esc(L.empty)}</p>`;
+			summary.hidden = true;
+			return;
+		}
+		linesEl.innerHTML = q.lines
+			.map(
+				(l: any) => `
+			<div class="line">
+				<div class="line-name">
+					<a href="/products/${encodeURIComponent(l.sku)}">${esc(L.lang === "en" && l.name_en ? l.name_en : l.name)}</a>
+					<div class="tiny muted">${fmt(l.price_satang)}${l.unit ? " / " + esc(l.unit) : ""}</div>
+				</div>
+				<div class="line-qty">
+					<button class="qbtn" data-dec="${esc(l.sku)}" aria-label="-">−</button>
+					<input type="number" min="1" max="${Math.min(99, l.stock)}" value="${l.qty}" data-qty="${esc(l.sku)}" aria-label="qty" />
+					<button class="qbtn" data-inc="${esc(l.sku)}" aria-label="+">+</button>
+				</div>
+				<div class="line-total">${fmt(l.line_satang)}</div>
+				<button class="line-rm tiny" data-rm="${esc(l.sku)}">${esc(L.remove)}</button>
+			</div>`,
+			)
+			.join("");
+		summary.hidden = false;
+		summary.querySelector("[data-subtotal]")!.textContent = fmt(q.subtotal);
+		summary.querySelector("[data-discount-row]")!.toggleAttribute("hidden", !q.discount);
+		summary.querySelector("[data-discount]")!.textContent = "−" + fmt(q.discount);
+		summary.querySelector("[data-shipping]")!.textContent = q.shipping ? fmt(q.shipping) : L.free;
+		summary.querySelector("[data-total]")!.textContent = fmt(q.total);
+	}
+
+	linesEl.addEventListener("click", (e) => {
+		const el = e.target as HTMLElement;
+		const cart = readCart();
+		if (el.dataset.inc) setQty(el.dataset.inc, (cart[el.dataset.inc] ?? 0) + 1);
+		else if (el.dataset.dec) setQty(el.dataset.dec, (cart[el.dataset.dec] ?? 0) - 1);
+		else if (el.dataset.rm) setQty(el.dataset.rm, 0);
+		else return;
+		render();
+	});
+	linesEl.addEventListener("change", (e) => {
+		const el = e.target as HTMLInputElement;
+		if (el.dataset.qty) {
+			setQty(el.dataset.qty, Math.floor(Number(el.value)) || 0);
+			render();
+		}
+	});
+	render();
+</script>
+
+<style>
+	.cart-layout {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 340px;
+		gap: 24px;
+		align-items: start;
+	}
+	@media (max-width: 860px) {
+		.cart-layout {
+			grid-template-columns: 1fr;
+		}
+	}
+	.summary {
+		position: sticky;
+		top: 130px;
+	}
+	dl {
+		margin: 0 0 14px;
+	}
+	dl div {
+		display: flex;
+		justify-content: space-between;
+		padding: 6px 0;
+	}
+	dt {
+		color: var(--ink-2);
+	}
+	dd {
+		margin: 0;
+		font-weight: 600;
+	}
+	.disc dd {
+		color: var(--accent);
+	}
+	.tot {
+		border-top: 1px solid var(--line);
+		margin-top: 6px;
+		padding-top: 12px !important;
+		font-size: 1.15rem;
+	}
+	.member-hint {
+		background: var(--accent-soft);
+		padding: 8px 12px;
+		border-radius: var(--radius-sm);
+	}
+	:global(.line) {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto 90px auto;
+		gap: 12px;
+		align-items: center;
+		padding: 12px 0;
+		border-bottom: 1px solid var(--line);
+	}
+	:global(.line:last-child) {
+		border-bottom: 0;
+	}
+	:global(.line-name a) {
+		color: var(--ink);
+		text-decoration: none;
+		font-weight: 500;
+		overflow-wrap: anywhere;
+	}
+	:global(.line-qty) {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+	:global(.line-qty input) {
+		width: 54px;
+		min-height: 36px;
+		text-align: center;
+		padding: 4px;
+	}
+	:global(.qbtn) {
+		width: 32px;
+		height: 36px;
+		border: 1px solid var(--line);
+		background: #fff;
+		border-radius: 8px;
+		font-size: 1.1rem;
+		cursor: pointer;
+	}
+	:global(.line-total) {
+		text-align: right;
+		font-weight: 600;
+	}
+	:global(.line-rm) {
+		background: none;
+		border: 0;
+		color: var(--muted);
+		cursor: pointer;
+		text-decoration: underline;
+	}
+	@media (max-width: 560px) {
+		:global(.line) {
+			grid-template-columns: 1fr auto;
+		}
+		:global(.line-total) {
+			text-align: left;
+		}
+	}
+</style>

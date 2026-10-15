@@ -1,0 +1,225 @@
+---
+import Base from "../../layouts/Base.astro";
+import Icon from "../../components/Icon.astro";
+import { baht } from "../../lib/catalog";
+import { t, ORDER_STATUS_KEYS, PAYMENT_KEYS } from "../../lib/i18n";
+import { getItems, getOrderByNo, refreshOrderPayment } from "../../lib/orders";
+import { safeEqual } from "../../lib/auth";
+
+const { lang, user, settings, env } = Astro.locals;
+const key = Astro.url.searchParams.get("k") ?? "";
+let order = await getOrderByNo(env.DB, Astro.params.no ?? "");
+const allowed = order && (safeEqual(key, order.access_key) || (user && order.customer_id === user.id));
+if (!order || !allowed) return Astro.rewrite("/404");
+order = await refreshOrderPayment(env.DB, env.OPN_SECRET_KEY, order);
+const items = await getItems(env.DB, order.id);
+const err = Astro.url.searchParams.get("err");
+const paymentsEnabled = !!(env.OPN_PUBLIC_KEY && env.OPN_SECRET_KEY);
+const awaiting = order.status === "awaiting_payment" || order.status === "failed";
+const statusKey = ORDER_STATUS_KEYS[order.status] ?? "statusAwaiting";
+const cfg = {
+	publicKey: env.OPN_PUBLIC_KEY ?? "",
+	gpay: env.GOOGLEPAY_MERCHANT_ID ?? "",
+	orderNo: order.order_no,
+	accessKey: order.access_key,
+	amount: order.total_satang,
+	method: order.payment_method ?? "promptpay",
+	lang,
+	shopName: lang === "th" ? settings.shop_name_th : settings.shop_name_en,
+	poll: order.status === "awaiting_payment" && !!order.charge_id,
+};
+const tel = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
+---
+
+<Base title={`${t(lang, "orderNo")} ${order.order_no}`} noindex>
+	<div class="wrap narrow" data-order data-cfg={JSON.stringify(cfg)}>
+		<div class="page-head">
+			<p class="muted small">{t(lang, "orderNo")}</p>
+			<h1>{order.order_no}</h1>
+			<span class:list={["badge", { "badge-amber": awaiting, "badge-consult": order.status === "failed" || order.status === "cancelled" }]}>{t(lang, statusKey)}</span>
+		</div>
+
+		{err && <div class="alert alert-error">{t(lang, "paymentFailed")}: {err}</div>}
+
+		{
+			order.status === "paid" || order.status === "packing" || order.status === "shipped" || order.status === "completed" ? (
+				<div class="alert alert-ok big">
+					<Icon name="shield" /> {t(lang, "paymentReceived")}
+				</div>
+			) : null
+		}
+
+		{
+			awaiting && order.qr_url && order.status === "awaiting_payment" && (
+				<div class="card qr">
+					<h2 class="h3">{t(lang, "scanToPay")}</h2>
+					<img src={order.qr_url} alt="PromptPay QR" width="280" height="280" />
+					<p class="total">{baht(order.total_satang)}</p>
+					<p class="tiny muted">{lang === "th" ? "หน้านี้จะอัปเดตอัตโนมัติเมื่อชำระเงินแล้ว" : "This page updates automatically once you've paid."}</p>
+					<a class="btn btn-ghost btn-sm" href={order.qr_url} download={`promptpay-${order.order_no}.svg`}>
+						{lang === "th" ? "บันทึก QR" : "Save QR"}
+					</a>
+				</div>
+			)
+		}
+
+		{
+			awaiting && (!order.qr_url || order.status === "failed") && (
+				<div class="card pay-box">
+					{paymentsEnabled ? (
+						<>
+							<p>{order.status === "failed" ? t(lang, "paymentFailed") : t(lang, "waitingPayment")}</p>
+							<button class="btn" data-pay>
+								{order.status === "failed" ? t(lang, "tryAgain") : t(lang, "payNow")} · {baht(order.total_satang)}
+							</button>
+						</>
+					) : (
+						<>
+							<p>{t(lang, "paymentsNotReady")}</p>
+							<div class="row">
+								{settings.line_url && (
+									<a class="btn btn-line" href={settings.line_url} target="_blank" rel="noopener">
+										{t(lang, "chatLine")}
+									</a>
+								)}
+								<a class="btn btn-ghost" href={tel}>
+									{settings.phone}
+								</a>
+							</div>
+						</>
+					)}
+				</div>
+			)
+		}
+
+		<section class="card">
+			<table class="table">
+				<tbody>
+					{
+						items.map((i) => (
+							<tr>
+								<td>
+									{i.name} <span class="muted">× {i.qty}</span>
+								</td>
+								<td class="r">{baht(i.price_satang * i.qty)}</td>
+							</tr>
+						))
+					}
+					<tr><td>{t(lang, "subtotal")}</td><td class="r">{baht(order.subtotal_satang)}</td></tr>
+					{order.discount_satang > 0 && <tr><td>{t(lang, "discount")}</td><td class="r disc">−{baht(order.discount_satang)}</td></tr>}
+					<tr><td>{t(lang, "shipping")}</td><td class="r">{order.shipping_satang ? baht(order.shipping_satang) : t(lang, "free")}</td></tr>
+					<tr class="tot"><td>{t(lang, "total")}</td><td class="r">{baht(order.total_satang)}</td></tr>
+				</tbody>
+			</table>
+			<div class="meta small">
+				<p><strong>{t(lang, "deliveryMethod")}:</strong> {order.delivery_method === "pickup" ? t(lang, "pickup") : t(lang, "delivery")}</p>
+				{
+					order.delivery_method === "delivery" && (
+						<p>
+							<strong>{t(lang, "shippingAddress")}:</strong> {order.name}, {order.address_line} {order.subdistrict} {order.district} {order.province} {order.postcode} · {order.phone}
+						</p>
+					)
+				}
+				{order.payment_method && <p><strong>{t(lang, "preferredPayment")}:</strong> {PAYMENT_KEYS[order.payment_method] ? t(lang, PAYMENT_KEYS[order.payment_method]) : order.payment_method}</p>}
+				{order.tracking_no && <p><strong>{t(lang, "tracking")}:</strong> {order.tracking_no}</p>}
+			</div>
+		</section>
+		<p class="small muted">{lang === "th" ? "มีคำถามเกี่ยวกับคำสั่งซื้อ?" : "Questions about your order?"} <a href={tel}>{settings.phone}</a>{settings.line_url && <> · <a href={settings.line_url}>LINE</a></>}</p>
+	</div>
+</Base>
+
+<script>
+	import { openPayment } from "../../lib/pay-client";
+	const root = document.querySelector<HTMLElement>("[data-order]")!;
+	const cfg = JSON.parse(root.dataset.cfg!);
+	const back = window.location.pathname + "?k=" + cfg.accessKey;
+
+	root.querySelector<HTMLButtonElement>("[data-pay]")?.addEventListener("click", () => {
+		openPayment({
+			publicKey: cfg.publicKey,
+			orderNo: cfg.orderNo,
+			accessKey: cfg.accessKey,
+			amount: cfg.amount,
+			method: cfg.method,
+			lang: cfg.lang,
+			shopName: cfg.shopName,
+			googlepayMerchantId: cfg.gpay || undefined,
+			onError: (msg) => (window.location.href = back + "&err=" + encodeURIComponent(msg)),
+		});
+	});
+
+	if (cfg.poll) {
+		let tries = 0;
+		const timer = setInterval(async () => {
+			tries++;
+			if (tries > 120) return clearInterval(timer);
+			try {
+				const res = await fetch(`/api/order-status?no=${cfg.orderNo}&k=${cfg.accessKey}`);
+				const d = await res.json();
+				if (d.status && d.status !== "awaiting_payment") {
+					clearInterval(timer);
+					window.location.href = back;
+				}
+			} catch {
+				/* keep polling */
+			}
+		}, 5000);
+	}
+</script>
+
+<style>
+	.narrow {
+		max-width: 720px;
+	}
+	.page-head h1 {
+		margin-bottom: 6px;
+	}
+	.card {
+		margin-bottom: 16px;
+	}
+	.big {
+		display: flex;
+		gap: 10px;
+		align-items: center;
+		font-size: 1.05rem;
+	}
+	.qr {
+		text-align: center;
+	}
+	.qr img {
+		margin: 8px auto;
+		width: 280px;
+		height: auto;
+		max-width: 100%;
+	}
+	.qr .total {
+		font-size: 1.5rem;
+		font-weight: 700;
+		margin: 6px 0;
+	}
+	.pay-box .row {
+		display: flex;
+		gap: 10px;
+		flex-wrap: wrap;
+	}
+	.r {
+		text-align: right;
+		white-space: nowrap;
+	}
+	.disc {
+		color: var(--accent);
+	}
+	.tot td {
+		font-weight: 700;
+		font-size: 1.1rem;
+	}
+	.meta {
+		margin-top: 12px;
+	}
+	.meta p {
+		margin: 4px 0;
+	}
+	.h3 {
+		font-size: 1.05rem;
+	}
+</style>

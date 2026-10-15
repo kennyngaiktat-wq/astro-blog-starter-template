@@ -1,0 +1,191 @@
+---
+import Base from "../../layouts/Base.astro";
+import { t, ORDER_STATUS_KEYS } from "../../lib/i18n";
+import { all, first, run } from "../../lib/db";
+import { hashPassword, verifyPassword, logoutCustomer } from "../../lib/auth";
+import { PREFERRED_PAYMENTS, str } from "../../lib/forms";
+import { baht } from "../../lib/catalog";
+import type { Order } from "../../lib/orders";
+
+const { lang, env, settings } = Astro.locals;
+let user = Astro.locals.user;
+if (!user) return Astro.redirect("/account/login?next=/account");
+const pct = Number(settings.member_discount_pct) || 0;
+
+let msg = "";
+let error = "";
+if (Astro.request.method === "POST") {
+	const fd = await Astro.request.formData();
+	const action = fd.get("action");
+	if (action === "profile") {
+		const v: Record<string, string> = {};
+		for (const k of ["name", "phone", "address_line", "subdistrict", "district", "province", "postcode", "preferred_payment"]) v[k] = str(fd, k);
+		const marketing = fd.get("marketing") === "on" ? 1 : 0;
+		if (!v.name || !v.phone) error = t(lang, "required");
+		else {
+			const pay = (PREFERRED_PAYMENTS as readonly string[]).includes(v.preferred_payment) ? v.preferred_payment : "promptpay";
+			await run(
+				env.DB,
+				`UPDATE customers SET name=?, phone=?, address_line=?, subdistrict=?, district=?, province=?, postcode=?, preferred_payment=?, marketing_opt_in=?, updated_at=datetime('now') WHERE id=?`,
+				v.name,
+				v.phone,
+				v.address_line,
+				v.subdistrict,
+				v.district,
+				v.province,
+				v.postcode,
+				pay,
+				marketing,
+				user.id,
+			);
+			msg = t(lang, "saved");
+		}
+	} else if (action === "password") {
+		const row = await first<{ password_hash: string }>(env.DB, "SELECT password_hash FROM customers WHERE id = ?", user.id);
+		const cur = String(fd.get("current") ?? "");
+		const nw = String(fd.get("new") ?? "");
+		if (!row || !(await verifyPassword(cur, row.password_hash))) error = t(lang, "wrongPassword");
+		else if (nw.length < 8) error = t(lang, "passwordShort");
+		else {
+			await run(env.DB, "UPDATE customers SET password_hash = ?, updated_at = datetime('now') WHERE id = ?", await hashPassword(nw), user.id);
+			await run(env.DB, "DELETE FROM sessions WHERE kind = 'customer' AND customer_id = ? AND token != ?", user.id, Astro.cookies.get("bpg_session")?.value ?? "");
+			msg = t(lang, "saved");
+		}
+	} else if (action === "delete" && fd.get("confirm") === "DELETE") {
+		await run(env.DB, "UPDATE orders SET customer_id = NULL WHERE customer_id = ?", user.id);
+		await run(env.DB, "DELETE FROM sessions WHERE customer_id = ?", user.id);
+		await run(env.DB, "DELETE FROM customers WHERE id = ?", user.id);
+		await logoutCustomer(env.DB, Astro.cookies);
+		return Astro.redirect("/");
+	}
+	user = (await first(env.DB, "SELECT * FROM customers WHERE id = ?", user.id)) as typeof user;
+}
+const marketing = (await first<{ m: number }>(env.DB, "SELECT marketing_opt_in AS m FROM customers WHERE id = ?", user!.id))?.m === 1;
+const orders = await all<Order>(env.DB, "SELECT * FROM orders WHERE customer_id = ? ORDER BY id DESC LIMIT 50", user!.id);
+const u = user!;
+---
+
+<Base title={t(lang, "account")} noindex>
+	<div class="wrap acct">
+		<div class="page-head head">
+			<div>
+				<h1>{t(lang, "account")}</h1>
+				<span class="badge">{t(lang, "memberActive", { pct })}</span>
+			</div>
+			<form method="post" action="/account/logout"><button class="btn btn-ghost btn-sm">{t(lang, "logout")}</button></form>
+		</div>
+		{msg && <div class="alert alert-ok">{msg}</div>}
+		{error && <div class="alert alert-error">{error}</div>}
+
+		<div class="cols">
+			<section class="card">
+				<h2>{t(lang, "profile")}</h2>
+				<form method="post">
+					<input type="hidden" name="action" value="profile" />
+					<div class="field"><label>{t(lang, "email")}</label><input value={u.email} disabled /></div>
+					<div class="grid-2">
+						<div class="field"><label for="name">{t(lang, "name")}</label><input id="name" name="name" required value={u.name} /></div>
+						<div class="field"><label for="phone">{t(lang, "phone")}</label><input id="phone" name="phone" type="tel" required value={u.phone} /></div>
+					</div>
+					<div class="field"><label for="address_line">{t(lang, "addressLine")}</label><input id="address_line" name="address_line" value={u.address_line ?? ""} /></div>
+					<div class="grid-2">
+						<div class="field"><label for="subdistrict">{t(lang, "subdistrict")}</label><input id="subdistrict" name="subdistrict" value={u.subdistrict ?? ""} /></div>
+						<div class="field"><label for="district">{t(lang, "district")}</label><input id="district" name="district" value={u.district ?? ""} /></div>
+						<div class="field"><label for="province">{t(lang, "province")}</label><input id="province" name="province" value={u.province ?? ""} /></div>
+						<div class="field"><label for="postcode">{t(lang, "postcode")}</label><input id="postcode" name="postcode" maxlength="5" value={u.postcode ?? ""} /></div>
+					</div>
+					<div class="field">
+						<label for="preferred_payment">{t(lang, "preferredPayment")}</label>
+						<select id="preferred_payment" name="preferred_payment">
+							<option value="promptpay" selected={u.preferred_payment === "promptpay"}>{t(lang, "payPromptPay")}</option>
+							<option value="googlepay" selected={u.preferred_payment === "googlepay"}>{t(lang, "payGooglePay")}</option>
+							<option value="card" selected={u.preferred_payment === "card"}>{t(lang, "payCard")}</option>
+						</select>
+					</div>
+					<label class="check small field"><input type="checkbox" name="marketing" checked={marketing} /> {t(lang, "marketingOptIn")}</label>
+					<button class="btn" type="submit">{t(lang, "save")}</button>
+				</form>
+			</section>
+
+			<div>
+				<section class="card">
+					<h2>{t(lang, "orders")}</h2>
+					{
+						orders.length === 0 ? (
+							<p class="muted">{t(lang, "noOrders")}</p>
+						) : (
+							<div class="table-scroll">
+								<table class="table">
+									<thead>
+										<tr><th>{t(lang, "orderNo")}</th><th>{t(lang, "date")}</th><th>{t(lang, "total")}</th><th>{t(lang, "status")}</th></tr>
+									</thead>
+									<tbody>
+										{orders.map((o) => (
+											<tr>
+												<td><a href={`/order/${o.order_no}`}>{o.order_no}</a></td>
+												<td class="nowrap">{o.created_at.slice(0, 10)}</td>
+												<td>{baht(o.total_satang)}</td>
+												<td><span class="badge">{t(lang, ORDER_STATUS_KEYS[o.status] ?? "statusAwaiting")}</span></td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+							</div>
+						)
+					}
+				</section>
+
+				<section class="card">
+					<h2>{t(lang, "changePassword")}</h2>
+					<form method="post">
+						<input type="hidden" name="action" value="password" />
+						<div class="field"><label for="current">{t(lang, "currentPassword")}</label><input id="current" name="current" type="password" required autocomplete="current-password" /></div>
+						<div class="field"><label for="new">{t(lang, "newPassword")}</label><input id="new" name="new" type="password" required minlength="8" autocomplete="new-password" /></div>
+						<button class="btn btn-ghost" type="submit">{t(lang, "save")}</button>
+					</form>
+				</section>
+
+				<details class="card danger">
+					<summary class="small">{lang === "th" ? "ลบบัญชีของฉัน" : "Delete my account"}</summary>
+					<form method="post">
+						<input type="hidden" name="action" value="delete" />
+						<p class="small muted">{lang === "th" ? "พิมพ์ DELETE เพื่อยืนยัน ข้อมูลส่วนตัวของคุณจะถูกลบ" : "Type DELETE to confirm. Your personal details will be removed."}</p>
+						<div class="field"><input name="confirm" placeholder="DELETE" /></div>
+						<button class="btn btn-danger btn-sm" type="submit">{lang === "th" ? "ลบบัญชี" : "Delete account"}</button>
+					</form>
+				</details>
+			</div>
+		</div>
+	</div>
+</Base>
+
+<style>
+	.head {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		gap: 12px;
+	}
+	.cols {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 20px;
+		align-items: start;
+	}
+	.cols section,
+	.cols details {
+		margin-bottom: 20px;
+	}
+	@media (max-width: 860px) {
+		.cols {
+			grid-template-columns: 1fr;
+		}
+	}
+	h2 {
+		font-size: 1.15rem;
+	}
+	summary {
+		cursor: pointer;
+		color: var(--muted);
+	}
+</style>

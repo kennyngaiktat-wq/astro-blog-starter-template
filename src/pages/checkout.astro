@@ -1,0 +1,283 @@
+---
+import Base from "../layouts/Base.astro";
+import { t } from "../lib/i18n";
+
+const { lang, user, settings, env } = Astro.locals;
+const pct = Number(settings.member_discount_pct) || 0;
+const pickup = settings.pickup_enabled === "1";
+const preferred = user?.preferred_payment ?? "promptpay";
+const paymentsEnabled = !!(env.OPN_PUBLIC_KEY && env.OPN_SECRET_KEY);
+const cfg = {
+	publicKey: env.OPN_PUBLIC_KEY ?? "",
+	gpay: env.GOOGLEPAY_MERCHANT_ID ?? "",
+	lang,
+	shopName: lang === "th" ? settings.shop_name_th : settings.shop_name_en,
+	labels: {
+		free: t(lang, "free"),
+		required: t(lang, "required"),
+		changed: t(lang, "priceChanged"),
+		empty: t(lang, "emptyCart"),
+		minimum: lang === "th" ? "ยอดชำระขั้นต่ำ ฿20" : "Minimum order is ฿20",
+		error: lang === "th" ? "เกิดข้อผิดพลาด กรุณาลองใหม่" : "Something went wrong — please try again",
+	},
+};
+---
+
+<Base title={t(lang, "checkout")} noindex>
+	<div class="wrap">
+		<div class="page-head"><h1>{t(lang, "checkout")}</h1></div>
+		{!paymentsEnabled && <div class="alert alert-warn">{t(lang, "paymentsNotReady")}</div>}
+		{
+			!user && pct > 0 && (
+				<div class="alert alert-ok">
+					<a href="/account/login?next=/checkout">{t(lang, "loginForDiscount", { pct })}</a> · <a href="/account/register?next=/checkout">{t(lang, "register")}</a>
+				</div>
+			)
+		}
+		<form class="co" data-checkout data-cfg={JSON.stringify(cfg)} novalidate>
+			<div>
+				<div class="alert alert-error" data-error hidden></div>
+				<section class="card">
+					<h2 class="h3">{t(lang, "profile")}</h2>
+					<div class="field"><label for="name">{t(lang, "name")} *</label><input id="name" name="name" required autocomplete="name" value={user?.name ?? ""} /></div>
+					<div class="grid-2">
+						<div class="field"><label for="phone">{t(lang, "phone")} *</label><input id="phone" name="phone" type="tel" required autocomplete="tel" value={user?.phone ?? ""} /></div>
+						<div class="field"><label for="email">{t(lang, "email")} *</label><input id="email" name="email" type="email" required autocomplete="email" value={user?.email ?? ""} /></div>
+					</div>
+				</section>
+
+				<section class="card">
+					<h2 class="h3">{t(lang, "deliveryMethod")}</h2>
+					<div class="opts">
+						<label class="opt"><input type="radio" name="delivery" value="delivery" checked /> {t(lang, "delivery")}</label>
+						{pickup && <label class="opt"><input type="radio" name="delivery" value="pickup" /> {t(lang, "pickup")}</label>}
+					</div>
+					<div data-address>
+						<div class="field"><label for="address_line">{t(lang, "addressLine")} *</label><input id="address_line" name="address_line" autocomplete="street-address" value={user?.address_line ?? ""} /></div>
+						<div class="grid-2">
+							<div class="field"><label for="subdistrict">{t(lang, "subdistrict")}</label><input id="subdistrict" name="subdistrict" value={user?.subdistrict ?? ""} /></div>
+							<div class="field"><label for="district">{t(lang, "district")} *</label><input id="district" name="district" value={user?.district ?? ""} /></div>
+							<div class="field"><label for="province">{t(lang, "province")} *</label><input id="province" name="province" autocomplete="address-level1" value={user?.province ?? ""} /></div>
+							<div class="field"><label for="postcode">{t(lang, "postcode")} *</label><input id="postcode" name="postcode" inputmode="numeric" autocomplete="postal-code" maxlength="5" value={user?.postcode ?? ""} /></div>
+						</div>
+					</div>
+					<p class="small muted" data-pickup-note hidden>{t(lang, "pickupNote")} — {lang === "th" ? settings.address_th : settings.address_en}</p>
+					<div class="field"><label for="note">{t(lang, "orderNote")}</label><textarea id="note" name="note" rows="2"></textarea></div>
+				</section>
+
+				<section class="card">
+					<h2 class="h3">{t(lang, "preferredPayment")}</h2>
+					<div class="opts pay-opts">
+						<label class="opt"><input type="radio" name="payment_method" value="promptpay" checked={preferred === "promptpay"} /> {t(lang, "payPromptPay")}</label>
+						<label class="opt"><input type="radio" name="payment_method" value="googlepay" checked={preferred === "googlepay"} /> {t(lang, "payGooglePay")}</label>
+						<label class="opt"><input type="radio" name="payment_method" value="card" checked={preferred === "card" || preferred === "applepay"} /> {t(lang, "payCard")}</label>
+					</div>
+					{
+						user && (
+							<label class="check small">
+								<input type="checkbox" name="save_profile" checked /> {lang === "th" ? "บันทึกที่อยู่และช่องทางชำระเงินนี้ไว้ในบัญชี" : "Save this address and payment method to my account"}
+							</label>
+						)
+					}
+				</section>
+			</div>
+
+			<aside class="card summary">
+				<h2 class="h3">{t(lang, "cart")}</h2>
+				<div data-items class="items"><p class="muted small">…</p></div>
+				<dl>
+					<div><dt>{t(lang, "subtotal")}</dt><dd data-subtotal>–</dd></div>
+					<div class="disc" data-discount-row hidden><dt>{t(lang, "discount")} ({pct}%)</dt><dd data-discount></dd></div>
+					<div><dt>{t(lang, "shipping")}</dt><dd data-shipping>–</dd></div>
+					<div class="tot"><dt>{t(lang, "total")}</dt><dd data-total>–</dd></div>
+				</dl>
+				<button class="btn btn-block" type="submit" data-submit disabled>{t(lang, "placeOrder")}</button>
+				<p class="tiny muted pay-note">PromptPay · Google Pay · Visa / Mastercard / JCB — {lang === "th" ? "ชำระผ่าน Opn Payments อย่างปลอดภัย" : "secured by Opn Payments"}</p>
+			</aside>
+		</form>
+	</div>
+</Base>
+
+<script>
+	import { readCart, writeCart, clearCart } from "../lib/cart-client";
+	import { openPayment } from "../lib/pay-client";
+
+	const form = document.querySelector<HTMLFormElement>("[data-checkout]")!;
+	const cfg = JSON.parse(form.dataset.cfg!);
+	const L = cfg.labels;
+	const errEl = form.querySelector<HTMLElement>("[data-error]")!;
+	const submitBtn = form.querySelector<HTMLButtonElement>("[data-submit]")!;
+	const fmt = (s: number) => "฿" + (s / 100).toLocaleString("en-US", { minimumFractionDigits: s % 100 ? 2 : 0, maximumFractionDigits: 2 });
+	const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+
+	function delivery() {
+		return (form.querySelector<HTMLInputElement>('input[name="delivery"]:checked')?.value ?? "delivery") as string;
+	}
+	function showError(msg: string) {
+		errEl.textContent = msg;
+		errEl.hidden = !msg;
+		if (msg) errEl.scrollIntoView({ behavior: "smooth", block: "center" });
+	}
+
+	async function refresh() {
+		const isPickup = delivery() === "pickup";
+		form.querySelector<HTMLElement>("[data-address]")!.hidden = isPickup;
+		form.querySelector<HTMLElement>("[data-pickup-note]")!.hidden = !isPickup;
+		const res = await fetch("/api/quote", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ cart: readCart(), delivery: delivery() }),
+		});
+		const q = await res.json();
+		if (q.removed.length || q.adjusted.length) {
+			const fixed: Record<string, number> = {};
+			for (const l of q.lines) fixed[l.sku] = l.qty;
+			writeCart(fixed);
+			showError(L.changed);
+		}
+		const items = form.querySelector<HTMLElement>("[data-items]")!;
+		if (!q.lines.length) {
+			items.innerHTML = `<p class="muted small">${esc(L.empty)} <a href="/products">→</a></p>`;
+			submitBtn.disabled = true;
+		} else {
+			items.innerHTML = q.lines
+				.map((l: any) => `<div class="it"><span>${esc(cfg.lang === "en" && l.name_en ? l.name_en : l.name)} <span class="muted">× ${l.qty}</span></span><span>${fmt(l.line_satang)}</span></div>`)
+				.join("");
+			submitBtn.disabled = false;
+		}
+		form.querySelector("[data-subtotal]")!.textContent = fmt(q.subtotal);
+		form.querySelector("[data-discount-row]")!.toggleAttribute("hidden", !q.discount);
+		form.querySelector("[data-discount]")!.textContent = "−" + fmt(q.discount);
+		form.querySelector("[data-shipping]")!.textContent = q.shipping ? fmt(q.shipping) : L.free;
+		form.querySelector("[data-total]")!.textContent = fmt(q.total);
+	}
+
+	form.addEventListener("change", (e) => {
+		if ((e.target as HTMLInputElement).name === "delivery") refresh();
+	});
+
+	form.addEventListener("submit", async (e) => {
+		e.preventDefault();
+		showError("");
+		const fd = new FormData(form);
+		const body: Record<string, unknown> = Object.fromEntries(fd.entries());
+		body.save_profile = fd.get("save_profile") === "on";
+		body.cart = readCart();
+		submitBtn.disabled = true;
+		try {
+			const res = await fetch("/api/checkout", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+			const data = await res.json();
+			if (!res.ok) {
+				if (data.error === "changed") await refresh();
+				showError(L[data.error] ?? L.error);
+				submitBtn.disabled = false;
+				return;
+			}
+			clearCart();
+			const orderUrl = `/order/${data.order_no}?k=${data.access_key}`;
+			if (!data.payments_enabled || !cfg.publicKey) {
+				window.location.href = orderUrl;
+				return;
+			}
+			await openPayment({
+				publicKey: cfg.publicKey,
+				orderNo: data.order_no,
+				accessKey: data.access_key,
+				amount: data.total,
+				method: data.payment_method,
+				lang: cfg.lang,
+				shopName: cfg.shopName,
+				googlepayMerchantId: cfg.gpay || undefined,
+				onClosed: () => (window.location.href = orderUrl),
+				onError: (msg) => (window.location.href = orderUrl + "&err=" + encodeURIComponent(msg)),
+			});
+		} catch {
+			showError(L.error);
+			submitBtn.disabled = false;
+		}
+	});
+
+	refresh();
+</script>
+
+<style>
+	.co {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 360px;
+		gap: 24px;
+		align-items: start;
+	}
+	.co section {
+		margin-bottom: 16px;
+	}
+	@media (max-width: 860px) {
+		.co {
+			grid-template-columns: 1fr;
+		}
+	}
+	.h3 {
+		font-size: 1.05rem;
+	}
+	.opts {
+		display: flex;
+		gap: 10px;
+		flex-wrap: wrap;
+		margin-bottom: 14px;
+	}
+	.opt {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		border: 1px solid var(--line);
+		border-radius: var(--radius-sm);
+		padding: 10px 14px;
+		font-weight: 500;
+		cursor: pointer;
+		margin: 0;
+	}
+	.opt:has(input:checked) {
+		border-color: var(--brand);
+		background: var(--brand-soft);
+	}
+	.summary {
+		position: sticky;
+		top: 130px;
+	}
+	.items {
+		font-size: 0.9rem;
+		margin-bottom: 12px;
+		max-height: 260px;
+		overflow: auto;
+	}
+	:global(.it) {
+		display: flex;
+		justify-content: space-between;
+		gap: 10px;
+		padding: 5px 0;
+		border-bottom: 1px dashed var(--line);
+	}
+	dl {
+		margin: 0 0 14px;
+	}
+	dl div {
+		display: flex;
+		justify-content: space-between;
+		padding: 5px 0;
+	}
+	dd {
+		margin: 0;
+		font-weight: 600;
+	}
+	.disc dd {
+		color: var(--accent);
+	}
+	.tot {
+		border-top: 1px solid var(--line);
+		padding-top: 10px !important;
+		font-size: 1.15rem;
+	}
+	.pay-note {
+		margin: 10px 0 0;
+		text-align: center;
+	}
+</style>

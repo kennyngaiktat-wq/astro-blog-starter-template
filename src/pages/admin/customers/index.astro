@@ -1,0 +1,59 @@
+---
+import Admin from "../../../layouts/Admin.astro";
+import { all, first } from "../../../lib/db";
+import { t, PAYMENT_KEYS } from "../../../lib/i18n";
+
+const { env } = Astro.locals;
+const q = (Astro.url.searchParams.get("q") ?? "").trim();
+const page = Math.max(1, Number(Astro.url.searchParams.get("page")) || 1);
+const per = 50;
+const where = q ? "WHERE name LIKE ? OR email LIKE ? OR phone LIKE ? OR province LIKE ?" : "";
+const params = q ? Array(4).fill(`%${q}%`) : [];
+const total = (await first<{ n: number }>(env.DB, `SELECT COUNT(*) n FROM customers ${where}`, ...params))?.n ?? 0;
+const rows = await all<Record<string, string | number | null>>(
+	env.DB,
+	`SELECT c.*, (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id) AS orders
+	 FROM customers c ${where} ORDER BY c.id DESC LIMIT ? OFFSET ?`,
+	...params,
+	per,
+	(page - 1) * per,
+);
+const pages = Math.max(1, Math.ceil(total / per));
+---
+
+<Admin title="Customers">
+	<form method="get" class="toolbar card">
+		<div class="field" style="flex:1; min-width:240px"><label for="q">Search name, email, phone or province</label><input id="q" type="search" name="q" value={q} /></div>
+		<button class="btn btn-sm">Search</button>
+		<a class="btn btn-sm btn-ghost" href="/admin/customers.csv">Download CSV</a>
+	</form>
+	<div class="card" style="padding:0">
+		<div class="table-scroll">
+			<table class="table">
+				<thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Province</th><th>Preferred payment</th><th>Orders</th><th>Joined</th><th></th></tr></thead>
+				<tbody>
+					{
+						rows.map((c) => (
+							<tr>
+								<td><a href={`/admin/customers/${c.id}`}>{c.name}</a>{c.disabled ? <span class="badge badge-out">disabled</span> : null}</td>
+								<td>{c.email}</td>
+								<td class="nowrap">{c.phone}</td>
+								<td>{c.province}</td>
+								<td>{c.preferred_payment && PAYMENT_KEYS[String(c.preferred_payment)] ? t("en", PAYMENT_KEYS[String(c.preferred_payment)]) : c.preferred_payment}</td>
+								<td>{c.orders}</td>
+								<td class="nowrap small">{String(c.created_at).slice(0, 10)}</td>
+								<td><a class="btn btn-ghost btn-sm" href={`/admin/customers/${c.id}`}>Edit</a></td>
+							</tr>
+						))
+					}
+				</tbody>
+			</table>
+		</div>
+		{rows.length === 0 && <p class="muted" style="padding:16px">No customers yet.</p>}
+	</div>
+	<nav class="pager">
+		{page > 1 && <a class="btn btn-ghost btn-sm" href={`?q=${encodeURIComponent(q)}&page=${page - 1}`}>← Prev</a>}
+		<span class="small muted">Page {page} of {pages} · {total} customers</span>
+		{page < pages && <a class="btn btn-ghost btn-sm" href={`?q=${encodeURIComponent(q)}&page=${page + 1}`}>Next →</a>}
+	</nav>
+</Admin>

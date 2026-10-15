@@ -1,0 +1,100 @@
+---
+import Admin from "../../layouts/Admin.astro";
+import { DEFAULT_SETTINGS, SETTING_KEYS, clearSettingsCache, loadSettings, type Settings } from "../../lib/settings";
+import { batchChunks } from "../../lib/db";
+
+const { env } = Astro.locals;
+let msg = "";
+if (Astro.request.method === "POST") {
+	const fd = await Astro.request.formData();
+	const stmts = SETTING_KEYS.filter((k) => k === "pickup_enabled" || fd.get(k) !== null).map((k) => {
+		let v = String(fd.get(k) ?? "").trim().slice(0, 1000);
+		if (k === "pickup_enabled") v = fd.get(k) === "on" ? "1" : "0";
+		if (k.endsWith("_url") && v && !/^https?:\/\//.test(v)) v = `https://${v}`;
+		return env.DB.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(k, v);
+	});
+	await batchChunks(env.DB, stmts);
+	clearSettingsCache();
+	msg = "Settings saved.";
+}
+const s: Settings = Astro.request.method === "POST" ? await loadSettings(env.DB) : Astro.locals.settings;
+
+const groups: { title: string; fields: { key: keyof Settings; label: string; hint?: string; type?: string }[] }[] = [
+	{
+		title: "Links (leave blank to hide)",
+		fields: [
+			{ key: "line_url", label: "LINE official account link", hint: "e.g. https://lin.ee/xxxx — used for the “Consult our pharmacist” buttons" },
+			{ key: "shopee_url", label: "Shopee shop link" },
+			{ key: "lazada_url", label: "Lazada shop link" },
+			{ key: "facebook_url", label: "Facebook page link" },
+			{ key: "wongnai_url", label: "Wongnai page link" },
+		],
+	},
+	{
+		title: "Pricing & delivery",
+		fields: [
+			{ key: "member_discount_pct", label: "Member discount (%)", type: "number" },
+			{ key: "shipping_fee", label: "Delivery fee (฿)", type: "number" },
+			{ key: "free_shipping_min", label: "Free delivery for orders from (฿, 0 = never)", type: "number" },
+		],
+	},
+	{
+		title: "Shop details",
+		fields: [
+			{ key: "shop_name_th", label: "Shop name (Thai)" },
+			{ key: "shop_name_en", label: "Shop name (English)" },
+			{ key: "phone", label: "Phone" },
+			{ key: "email", label: "Email (optional)" },
+			{ key: "address_th", label: "Address (Thai)" },
+			{ key: "address_en", label: "Address (English)" },
+			{ key: "hours_th", label: "Opening hours (Thai)" },
+			{ key: "hours_en", label: "Opening hours (English)" },
+			{ key: "map_lat", label: "Map latitude" },
+			{ key: "map_lng", label: "Map longitude" },
+			{ key: "map_link", label: "Google Maps link" },
+		],
+	},
+	{
+		title: "Announcement bar (optional)",
+		fields: [
+			{ key: "announcement_th", label: "Announcement (Thai)", hint: "Shown at the very top of every page" },
+			{ key: "announcement_en", label: "Announcement (English)" },
+		],
+	},
+];
+---
+
+<Admin title="Settings">
+	{msg && <div class="alert alert-ok">{msg}</div>}
+	<form method="post">
+		{
+			groups.map((g) => (
+				<section class="card">
+					<h2 class="h3">{g.title}</h2>
+					<div class="grid-2">
+						{g.fields.map((f) => (
+							<div class="field">
+								<label for={f.key}>{f.label}</label>
+								<input id={f.key} name={f.key} type={f.type ?? "text"} step={f.type === "number" ? "any" : undefined} value={s[f.key]} placeholder={DEFAULT_SETTINGS[f.key]} />
+								{f.hint && <p class="tiny muted">{f.hint}</p>}
+							</div>
+						))}
+					</div>
+					{g.title === "Pricing & delivery" && (
+						<label class="check small">
+							<input type="checkbox" name="pickup_enabled" checked={s.pickup_enabled === "1"} /> Allow “pick up in store” at checkout (free)
+						</label>
+					)}
+				</section>
+			))
+		}
+		<button class="btn">Save settings</button>
+	</form>
+	<section class="card" style="margin-top:24px">
+		<h2 class="h3">Payments</h2>
+		<p class="small">
+			Opn Payments: {env.OPN_PUBLIC_KEY && env.OPN_SECRET_KEY ? <strong style="color:var(--ok)">connected{env.OPN_PUBLIC_KEY.startsWith("pkey_test") ? " (TEST mode)" : ""}</strong> : <strong style="color:var(--danger)">not connected</strong>}.
+			Keys are set in Cloudflare, not here: <code>OPN_PUBLIC_KEY</code> and <code>OPN_SECRET_KEY</code> as secrets. Webhook URL for the Opn dashboard: <code>{(env.SITE_URL || Astro.url.origin) + "/api/webhooks/opn"}</code>
+		</p>
+	</section>
+</Admin>

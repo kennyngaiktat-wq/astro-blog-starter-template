@@ -1,0 +1,55 @@
+---
+import Base from "../../layouts/Base.astro";
+import { t } from "../../lib/i18n";
+import { first } from "../../lib/db";
+import { createCustomerSession, verifyPassword } from "../../lib/auth";
+import { safeNext, str } from "../../lib/forms";
+
+const { lang, env, user } = Astro.locals;
+const next = safeNext(Astro.url.searchParams.get("next"));
+if (user) return Astro.redirect(next);
+
+let error = "";
+let email = "";
+if (Astro.request.method === "POST") {
+	const fd = await Astro.request.formData();
+	email = str(fd, "email", 160).toLowerCase();
+	const password = String(fd.get("password") ?? "");
+	const row = await first<{ id: number; password_hash: string; disabled: number }>(
+		env.DB,
+		"SELECT id, password_hash, disabled FROM customers WHERE email = ?",
+		email,
+	);
+	if (row && !row.disabled && (await verifyPassword(password, row.password_hash))) {
+		await createCustomerSession(env.DB, Astro.cookies, row.id, Astro.url.protocol === "https:");
+		return Astro.redirect(next);
+	}
+	error = t(lang, "loginFailed");
+}
+---
+
+<Base title={t(lang, "login")} noindex>
+	<div class="wrap auth">
+		<div class="card">
+			<h1>{t(lang, "login")}</h1>
+			{error && <div class="alert alert-error">{error}</div>}
+			<form method="post">
+				<div class="field"><label for="email">{t(lang, "email")}</label><input id="email" name="email" type="email" required autocomplete="email" value={email} /></div>
+				<div class="field"><label for="password">{t(lang, "password")}</label><input id="password" name="password" type="password" required autocomplete="current-password" /></div>
+				<button class="btn btn-block" type="submit">{t(lang, "login")}</button>
+			</form>
+			<p class="small">{t(lang, "noAccount")} <a href={`/account/register?next=${encodeURIComponent(next)}`}>{t(lang, "register")}</a></p>
+			<p class="tiny muted">{lang === "th" ? "ลืมรหัสผ่าน? ติดต่อร้านเพื่อรีเซ็ตรหัสผ่าน" : "Forgot your password? Contact the shop and we'll reset it."}</p>
+		</div>
+	</div>
+</Base>
+
+<style>
+	.auth {
+		max-width: 460px;
+		padding-top: 36px;
+	}
+	h1 {
+		font-size: 1.6rem;
+	}
+</style>

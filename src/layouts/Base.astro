@@ -1,0 +1,432 @@
+---
+import "../styles/global.css";
+import Icon from "../components/Icon.astro";
+import { CATEGORIES, navName } from "../lib/catalog";
+import { t } from "../lib/i18n";
+
+interface Props {
+	title?: string;
+	description?: string;
+	noindex?: boolean;
+}
+
+const { lang, user, settings } = Astro.locals;
+const shopName = lang === "th" ? settings.shop_name_th : settings.shop_name_en;
+const { title, description = t(lang, "heroText"), noindex = false } = Astro.props;
+const fullTitle = title ? `${title} | ${settings.shop_name_en}` : `${settings.shop_name_en} — ${t(lang, "tagline")}`;
+const path = Astro.url.pathname;
+const back = encodeURIComponent(Astro.url.pathname + Astro.url.search);
+const q = Astro.url.searchParams.get("q") ?? "";
+const announcement = lang === "th" ? settings.announcement_th : settings.announcement_en;
+const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
+---
+
+<!doctype html>
+<html lang={lang}>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width,initial-scale=1" />
+		<title>{fullTitle}</title>
+		<meta name="description" content={description} />
+		{noindex && <meta name="robots" content="noindex" />}
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta property="og:title" content={fullTitle} />
+		<meta property="og:description" content={description} />
+		<meta property="og:type" content="website" />
+		<meta name="theme-color" content="#0d6b55" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap"
+			rel="stylesheet"
+		/>
+		<slot name="head" />
+	</head>
+	<body>
+		{announcement && <div class="announce">{announcement}</div>}
+		<header class="site-header">
+			<div class="wrap head-row">
+				<button class="icon-btn menu-btn" aria-label="Menu" data-menu-toggle>
+					<Icon name="menu" />
+				</button>
+				<a href="/" class="logo" aria-label={shopName}>
+					<span class="logo-mark" aria-hidden="true">
+						<svg viewBox="0 0 32 32" width="34" height="34"
+							><rect width="32" height="32" rx="9" fill="#0d6b55"></rect><path
+								d="M13 8h6v5h5v6h-5v5h-6v-5H8v-6h5z"
+								fill="#fbfaf6"></path></svg
+						>
+					</span>
+					<span class="logo-text">
+						<strong>Big Pharma</strong>
+						<small>{lang === "th" ? "บิ๊กฟาร์ม่า กรุ๊ป" : "Group · Pharmacy"}</small>
+					</span>
+				</a>
+				<form action="/products" method="get" class="head-search" role="search">
+					<Icon name="search" size={18} class="search-ico" />
+					<input type="search" name="q" value={q} placeholder={t(lang, "searchPlaceholder")} aria-label={t(lang, "search")} />
+				</form>
+				<nav class="head-actions">
+					<a class="lang-switch" href={`/api/lang?to=${lang === "th" ? "en" : "th"}&back=${back}`} title="ภาษาไทย / English">
+						<span class:list={{ on: lang === "th" }}>TH</span><span class:list={{ on: lang === "en" }}>EN</span>
+					</a>
+					<a href={user ? "/account" : "/account/login"} class="icon-btn" aria-label={t(lang, "account")}>
+						<Icon name="user" />
+						<span class="hide-sm">{user ? user.name.split(" ")[0] : t(lang, "login")}</span>
+					</a>
+					<a href="/cart" class="icon-btn cart-link" aria-label={t(lang, "cart")}>
+						<Icon name="cart" />
+						<span class="cart-count" data-cart-count hidden>0</span>
+					</a>
+				</nav>
+			</div>
+			<nav class="cat-nav" data-menu>
+				<div class="wrap cat-row">
+					<a href="/products" class:list={{ on: path === "/products" && !Astro.url.searchParams.get("category") }}>{t(lang, "allProducts")}</a>
+					{
+						CATEGORIES.map((c) => (
+							<a href={`/products?category=${c.slug}`} class:list={{ on: Astro.url.searchParams.get("category") === c.slug }}>
+								{navName(c.slug, lang)}
+							</a>
+						))
+					}
+					<a href="/contact" class:list={{ on: path === "/contact" }}>{t(lang, "contact")}</a>
+				</div>
+			</nav>
+		</header>
+
+		<main>
+			<slot />
+		</main>
+
+		<footer class="site-footer">
+			<div class="wrap foot-grid">
+				<div>
+					<div class="foot-brand">{shopName}</div>
+					<p class="muted small">{t(lang, "tagline")}</p>
+					<p class="small foot-line"><Icon name="map" size={18} /> {lang === "th" ? settings.address_th : settings.address_en}</p>
+					<p class="small foot-line"><Icon name="clock" size={18} /> {lang === "th" ? settings.hours_th : settings.hours_en}</p>
+					<p class="small foot-line"><Icon name="phone" size={18} /> <a href={telHref}>{settings.phone}</a></p>
+				</div>
+				<div>
+					<div class="foot-h">{t(lang, "categories")}</div>
+					<ul class="foot-list">
+						{CATEGORIES.map((c) => <li><a href={`/products?category=${c.slug}`}>{c[lang]}</a></li>)}
+					</ul>
+				</div>
+				<div>
+					<div class="foot-h">{t(lang, "alsoOn")}</div>
+					<ul class="foot-list">
+						{settings.line_url && <li><a href={settings.line_url} target="_blank" rel="noopener">LINE</a></li>}
+						{settings.shopee_url && <li><a href={settings.shopee_url} target="_blank" rel="noopener">Shopee</a></li>}
+						{settings.lazada_url && <li><a href={settings.lazada_url} target="_blank" rel="noopener">Lazada</a></li>}
+						{settings.facebook_url && <li><a href={settings.facebook_url} target="_blank" rel="noopener">Facebook</a></li>}
+						{settings.wongnai_url && <li><a href={settings.wongnai_url} target="_blank" rel="noopener">Wongnai</a></li>}
+						<li><a href="/contact">{t(lang, "contact")}</a></li>
+						<li><a href="/privacy">{t(lang, "privacy")}</a></li>
+					</ul>
+				</div>
+			</div>
+			<div class="wrap foot-base tiny muted">© {new Date().getFullYear()} {settings.shop_name_en}</div>
+		</footer>
+
+		<div class="toast" data-toast role="status" aria-live="polite"></div>
+
+		<script>
+			import { cartCount, addToCart } from "../lib/cart-client";
+
+			function refreshCount() {
+				const n = cartCount();
+				document.querySelectorAll<HTMLElement>("[data-cart-count]").forEach((el) => {
+					el.textContent = String(n);
+					el.hidden = n === 0;
+				});
+			}
+			refreshCount();
+			window.addEventListener("cart:changed", refreshCount);
+			window.addEventListener("storage", refreshCount);
+
+			const toast = document.querySelector<HTMLElement>("[data-toast]");
+			let toastTimer: number | undefined;
+			function showToast(msg: string) {
+				if (!toast) return;
+				toast.textContent = msg;
+				toast.classList.add("show");
+				clearTimeout(toastTimer);
+				toastTimer = window.setTimeout(() => toast.classList.remove("show"), 1800);
+			}
+
+			document.addEventListener("click", (e) => {
+				const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-add-sku]");
+				if (!btn) return;
+				e.preventDefault();
+				const qtyInput = btn.dataset.qtyFrom ? document.querySelector<HTMLInputElement>(btn.dataset.qtyFrom) : null;
+				const qty = Math.max(1, Number(qtyInput?.value ?? 1) || 1);
+				addToCart(btn.dataset.addSku!, qty);
+				showToast(btn.dataset.addedLabel ?? "Added");
+			});
+
+			document.querySelector("[data-menu-toggle]")?.addEventListener("click", () => {
+				document.querySelector("[data-menu]")?.classList.toggle("open");
+			});
+		</script>
+
+		<style>
+			.announce {
+				background: var(--brand-ink);
+				color: #e9f6f1;
+				text-align: center;
+				font-size: 0.85rem;
+				padding: 6px 16px;
+			}
+			.site-header {
+				background: #fff;
+				border-bottom: 1px solid var(--line);
+				position: sticky;
+				top: 0;
+				z-index: 30;
+			}
+			.head-row {
+				display: flex;
+				align-items: center;
+				gap: 14px;
+				height: 68px;
+			}
+			.logo {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+				text-decoration: none;
+				color: var(--ink);
+				flex: none;
+			}
+			.logo-text {
+				display: flex;
+				flex-direction: column;
+				line-height: 1.1;
+			}
+			.logo-text strong {
+				font-size: 1.1rem;
+				letter-spacing: -0.01em;
+			}
+			.logo-text small {
+				font-size: 0.72rem;
+				color: var(--muted);
+			}
+			.head-search {
+				flex: 1;
+				position: relative;
+				max-width: 520px;
+				margin-left: 12px;
+			}
+			.head-search input {
+				border-radius: 999px;
+				padding-left: 40px;
+				background: #f4f6f5;
+				border-color: transparent;
+			}
+			.head-search :global(.search-ico) {
+				position: absolute;
+				left: 14px;
+				top: 13px;
+				color: var(--muted);
+			}
+			.head-actions {
+				display: flex;
+				align-items: center;
+				gap: 6px;
+				margin-left: auto;
+			}
+			.icon-btn {
+				display: inline-flex;
+				align-items: center;
+				gap: 6px;
+				min-height: 42px;
+				min-width: 42px;
+				justify-content: center;
+				padding: 0 10px;
+				border-radius: 999px;
+				color: var(--ink);
+				text-decoration: none;
+				background: none;
+				border: 0;
+				font: inherit;
+				font-size: 0.92rem;
+				cursor: pointer;
+				position: relative;
+			}
+			.icon-btn:hover {
+				background: #f1f4f3;
+			}
+			.menu-btn {
+				display: none;
+			}
+			.cart-count {
+				position: absolute;
+				top: 2px;
+				right: 0;
+				background: var(--accent);
+				color: #fff;
+				font-size: 0.7rem;
+				font-weight: 700;
+				min-width: 18px;
+				height: 18px;
+				border-radius: 9px;
+				display: grid;
+				place-items: center;
+				padding: 0 4px;
+			}
+			.cart-count[hidden] {
+				display: none;
+			}
+			.lang-switch {
+				display: inline-flex;
+				border: 1px solid var(--line);
+				border-radius: 999px;
+				overflow: hidden;
+				text-decoration: none;
+				font-size: 0.78rem;
+				font-weight: 600;
+			}
+			.lang-switch span {
+				padding: 5px 9px;
+				color: var(--muted);
+			}
+			.lang-switch span.on {
+				background: var(--brand);
+				color: #fff;
+			}
+			.cat-nav {
+				border-top: 1px solid var(--line);
+			}
+			.cat-row {
+				display: flex;
+				gap: 4px;
+				overflow-x: auto;
+				scrollbar-width: none;
+			}
+			.cat-row a {
+				padding: 11px 12px;
+				font-size: 0.9rem;
+				color: var(--ink-2);
+				text-decoration: none;
+				white-space: nowrap;
+				border-bottom: 2px solid transparent;
+			}
+			.cat-row a:hover,
+			.cat-row a.on {
+				color: var(--brand-ink);
+				border-bottom-color: var(--brand);
+			}
+			@media (max-width: 860px) {
+				.head-row {
+					flex-wrap: wrap;
+					height: auto;
+					padding-top: 8px;
+					padding-bottom: 10px;
+					gap: 6px;
+				}
+				.menu-btn {
+					display: inline-flex;
+					margin-left: -10px;
+				}
+				.head-search {
+					order: 5;
+					flex-basis: 100%;
+					max-width: none;
+					margin: 4px 0 0;
+				}
+				.hide-sm {
+					display: none;
+				}
+				.cat-nav {
+					display: none;
+				}
+				.cat-nav.open {
+					display: block;
+				}
+				.cat-row {
+					flex-direction: column;
+					padding: 6px 16px 12px;
+				}
+				.cat-row a {
+					border-bottom: 1px solid var(--line);
+				}
+			}
+			.site-footer {
+				margin-top: 64px;
+				background: #0f2a24;
+				color: #cfe3dc;
+				padding: 44px 0 20px;
+			}
+			.site-footer a {
+				color: #e9f6f1;
+			}
+			.site-footer .muted {
+				color: #95b3aa;
+			}
+			.foot-grid {
+				display: grid;
+				grid-template-columns: 1.4fr 1fr 1fr;
+				gap: 32px;
+			}
+			.foot-brand {
+				font-weight: 700;
+				font-size: 1.15rem;
+				color: #fff;
+			}
+			.foot-h {
+				font-weight: 600;
+				color: #fff;
+				margin-bottom: 8px;
+			}
+			.foot-list {
+				list-style: none;
+				padding: 0;
+				margin: 0;
+				font-size: 0.9rem;
+				line-height: 2;
+			}
+			.foot-line {
+				display: flex;
+				gap: 8px;
+				align-items: flex-start;
+				margin: 6px 0;
+			}
+			.foot-line :global(svg) {
+				flex: none;
+				margin-top: 2px;
+			}
+			.foot-base {
+				margin-top: 32px;
+				padding-top: 16px;
+				border-top: 1px solid #23413a;
+			}
+			@media (max-width: 760px) {
+				.foot-grid {
+					grid-template-columns: 1fr;
+					gap: 20px;
+				}
+			}
+			.toast {
+				position: fixed;
+				left: 50%;
+				bottom: 24px;
+				transform: translate(-50%, 20px);
+				background: var(--ink);
+				color: #fff;
+				padding: 10px 18px;
+				border-radius: 999px;
+				font-size: 0.9rem;
+				opacity: 0;
+				pointer-events: none;
+				transition: 0.2s;
+				z-index: 50;
+			}
+			.toast.show {
+				opacity: 1;
+				transform: translate(-50%, 0);
+			}
+		</style>
+	</body>
+</html>

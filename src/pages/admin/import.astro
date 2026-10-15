@@ -1,0 +1,93 @@
+---
+import Admin from "../../layouts/Admin.astro";
+import { importProducts, type ImportResult } from "../../lib/importer";
+
+const { env } = Astro.locals;
+let result: ImportResult | null = null;
+let error = "";
+if (Astro.request.method === "POST") {
+	const fd = await Astro.request.formData();
+	const file = fd.get("file");
+	if (!(file instanceof File) || file.size === 0) error = "Choose a CSV file first.";
+	else if (file.size > 8_000_000) error = "That file is too large (max 8 MB).";
+	else {
+		try {
+			const buf = await file.arrayBuffer();
+			let text = new TextDecoder("utf-8", { fatal: false }).decode(buf);
+			if (text.includes("�")) {
+				// Thai Excel "CSV" saved as Windows-874 instead of UTF-8
+				try {
+					text = new TextDecoder("windows-874").decode(buf);
+				} catch {
+					throw new Error("This file isn't UTF-8. In Excel choose File → Save As → “CSV UTF-8 (Comma delimited)” and try again.");
+				}
+			}
+			result = await importProducts(env.DB, text, {
+				createNew: fd.get("create_new") === "on",
+				hideMissing: fd.get("hide_missing") === "on",
+			});
+		} catch (e) {
+			error = (e as Error).message;
+		}
+	}
+}
+---
+
+<Admin title="Import / Export products">
+	{error && <div class="alert alert-error">{error}</div>}
+	{
+		result && (
+			<div class="alert alert-ok">
+				Import finished: <strong>{result.created}</strong> created, <strong>{result.updated}</strong> updated, {result.unchanged} unchanged
+				{result.hidden > 0 && <>, {result.hidden} hidden (not in file)</>}
+				{result.skipped.length > 0 && <>, <strong>{result.skipped.length}</strong> skipped</>}. Columns used: {result.columns.join(", ")}.
+			</div>
+		)
+	}
+	{
+		result && result.skipped.length > 0 && (
+			<details class="card" open={result.skipped.length < 30}>
+				<summary>Skipped rows ({result.skipped.length})</summary>
+				<ul class="small">
+					{result.skipped.slice(0, 200).map((s) => (
+						<li>
+							Line {s.line}: {s.reason}
+						</li>
+					))}
+				</ul>
+			</details>
+		)
+	}
+
+	<div class="grid-2" style="gap:16px; align-items:start">
+		<section class="card">
+			<h2 class="h3">Import (bulk update)</h2>
+			<p class="small">Upload a <strong>CSV</strong> file. Products are matched by <strong>SKU</strong>. Only the columns in your file are changed — a file with just <code>sku,price</code> updates prices and nothing else.</p>
+			<form method="post" enctype="multipart/form-data">
+				<div class="field"><input type="file" name="file" accept=".csv,text/csv,.tsv,.txt" required /></div>
+				<label class="check small field"><input type="checkbox" name="create_new" checked /> Create products for SKUs that don't exist yet</label>
+				<label class="check small field"><input type="checkbox" name="hide_missing" /> Hide products that are <em>not</em> in this file</label>
+				<button class="btn" type="submit">Import</button>
+			</form>
+			<h3 class="h3" style="margin-top:20px">Accepted columns</h3>
+			<p class="small"><code>sku, barcode, name, name_en, unit, price, stock, category, consult_required, active, featured, tags, description, image_url</code></p>
+			<ul class="small">
+				<li><strong>category</strong>: <code>medical_equipment</code>, <code>medical_supplies</code>, <code>health_supplements</code>, <code>otc</code>, <code>other_medication</code></li>
+				<li><strong>consult_required / active / featured</strong>: yes or no</li>
+				<li><strong>tags</strong>: comma separated, e.g. <code>pain-fever,kids</code></li>
+			</ul>
+			<h3 class="h3">Updating from the POS</h3>
+			<p class="small">You can upload the POS "stock current balance" export directly: open it in Excel, choose <em>File → Save As → CSV UTF-8</em>, then import it here. Only SKU, name, unit, <strong>selling price</strong>, stock and barcode are read — cost and profit columns are ignored. New SKUs get a category from the POS type (medicines start as consultation-only).</p>
+		</section>
+		<section class="card">
+			<h2 class="h3">Export</h2>
+			<p class="small">Download products as CSV (opens in Excel), edit, then import the file back.</p>
+			<p><a class="btn btn-ghost" href="/admin/export.csv">Download all products</a></p>
+			<p><a class="btn btn-ghost" href="/admin/export.csv?active=yes">Download products shown on site</a></p>
+			<p><a class="btn btn-ghost" href="/admin/export.csv?template=1">Download blank template</a></p>
+			<p class="small muted">Tip: to export a filtered list, filter on the Products page, then use the link at the bottom of that page.</p>
+			<h2 class="h3" style="margin-top:22px">Customers</h2>
+			<p><a class="btn btn-ghost" href="/admin/customers.csv">Download customers</a></p>
+		</section>
+	</div>
+</Admin>

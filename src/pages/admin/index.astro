@@ -1,0 +1,74 @@
+---
+import Admin from "../../layouts/Admin.astro";
+import { all, first } from "../../lib/db";
+import { baht, categoryName } from "../../lib/catalog";
+import type { Order } from "../../lib/orders";
+import { cleanupSessions } from "../../lib/auth";
+
+const { env } = Astro.locals;
+const db = env.DB;
+await cleanupSessions(db);
+const n = async (sql: string) => (await first<{ n: number }>(db, sql))?.n ?? 0;
+const [products, active, outOfStock, consult, customers, awaiting, toShip] = await Promise.all([
+	n("SELECT COUNT(*) n FROM products"),
+	n("SELECT COUNT(*) n FROM products WHERE active = 1"),
+	n("SELECT COUNT(*) n FROM products WHERE active = 1 AND stock <= 0 AND consult_required = 0"),
+	n("SELECT COUNT(*) n FROM products WHERE consult_required = 1"),
+	n("SELECT COUNT(*) n FROM customers"),
+	n("SELECT COUNT(*) n FROM orders WHERE status = 'awaiting_payment'"),
+	n("SELECT COUNT(*) n FROM orders WHERE status IN ('paid','packing')"),
+]);
+const sales = await first<{ s: number; c: number }>(
+	db,
+	"SELECT IFNULL(SUM(total_satang),0) s, COUNT(*) c FROM orders WHERE status IN ('paid','packing','shipped','completed') AND created_at >= datetime('now','-30 days')",
+);
+const byCat = await all<{ category: string; n: number }>(db, "SELECT category, COUNT(*) n FROM products GROUP BY category ORDER BY n DESC");
+const recent = await all<Order>(db, "SELECT * FROM orders ORDER BY id DESC LIMIT 8");
+const paymentsReady = !!(env.OPN_PUBLIC_KEY && env.OPN_SECRET_KEY);
+---
+
+<Admin title="Dashboard">
+	{!paymentsReady && <div class="alert alert-warn">Online payments are off. Add <code>OPN_PUBLIC_KEY</code> and <code>OPN_SECRET_KEY</code> as secrets in Cloudflare to switch on PromptPay, Google Pay and cards.</div>}
+	{products === 0 && <div class="alert alert-warn">No products yet. Go to <a href="/admin/import">Import / Export</a> and upload <code>products_import.csv</code>.</div>}
+	<div class="kpis">
+		<a class="kpi" href="/admin/orders?status=paid"><span class="small muted">Orders to pack</span><b>{toShip}</b></a>
+		<a class="kpi" href="/admin/orders?status=awaiting_payment"><span class="small muted">Awaiting payment</span><b>{awaiting}</b></a>
+		<div class="kpi"><span class="small muted">Sales, last 30 days</span><b>{baht(sales?.s ?? 0)}</b><span class="tiny muted">{sales?.c ?? 0} paid orders</span></div>
+		<a class="kpi" href="/admin/customers"><span class="small muted">Members</span><b>{customers}</b></a>
+		<a class="kpi" href="/admin/products"><span class="small muted">Products shown / total</span><b>{active} / {products}</b></a>
+		<a class="kpi" href="/admin/products?stock=out&consult=no&active=yes"><span class="small muted">Out of stock (sellable)</span><b>{outOfStock}</b></a>
+		<a class="kpi" href="/admin/products?consult=yes"><span class="small muted">Consultation-only</span><b>{consult}</b></a>
+	</div>
+
+	<div class="grid-2" style="gap:16px; align-items:start">
+		<section class="card">
+			<h2 class="h3">Recent orders</h2>
+			{
+				recent.length === 0 ? (
+					<p class="muted">No orders yet.</p>
+				) : (
+					<table class="table">
+						<tbody>
+							{recent.map((o) => (
+								<tr>
+									<td><a href={`/admin/orders/${o.id}`}>{o.order_no}</a></td>
+									<td>{o.name}</td>
+									<td>{baht(o.total_satang)}</td>
+									<td><span class="badge">{o.status}</span></td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				)
+			}
+		</section>
+		<section class="card">
+			<h2 class="h3">Products by category</h2>
+			<table class="table">
+				<tbody>
+					{byCat.map((c) => <tr><td><a href={`/admin/products?category=${c.category}`}>{categoryName(c.category, "en")}</a></td><td>{c.n}</td></tr>)}
+				</tbody>
+			</table>
+		</section>
+	</div>
+</Admin>

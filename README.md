@@ -1,64 +1,61 @@
-# Astro Starter Kit: Blog
+# Big Pharma Group: pharmacy website
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/templates/tree/main/astro-blog-starter-template)
+This is an Astro site that runs on **Cloudflare Workers**, with a **D1** database. It covers:
 
-![Astro Template Preview](https://github.com/withastro/astro/assets/2244813/ff10799f-a816-4703-b967-c78997e8323d)
+- **Product catalogue.** Five categories, tags, search, and Thai/English.
+- **Consultation-only medicines.** These are listed so customers know you stock them, but they can't be added to the cart. Customers are pointed to LINE or phone instead.
+- **Cart and checkout.** Payment is through **Opn Payments**: PromptPay QR, Google Pay and cards. Customers can choose home delivery or pickup in store.
+- **Member accounts.** Members get a 5% discount, a saved address and a preferred payment method.
+- **Admin area** (`/admin`):
+  - product search, inline price and stock editing, and bulk updates (tags, category, price %, consultation, show/hide)
+  - CSV import and export (including the POS stock export)
+  - customers and orders
+  - shop settings and links (LINE, Shopee, Lazada)
 
-<!-- dash-content-start -->
+## First deploy (one time)
 
-Create a blog with Astro and deploy it on Cloudflare Workers as a [static website](https://developers.cloudflare.com/workers/static-assets/).
+1. **Connect the repo.** In the Cloudflare dashboard, go to **Workers & Pages → Create → Import a repository**. Pick this GitHub repo and keep the defaults:
+   - Build command: `npm run build`
+   - Deploy command: `npx wrangler deploy`
 
-Features:
+   The D1 database `big-pharma-db` is created automatically on the first deploy.
+2. **Add secrets.** Open the Worker, then **Settings → Variables and Secrets**. Add each of these as type **Secret**:
+   - `ADMIN_EMAIL`: your admin login email
+   - `ADMIN_PASSWORD`: a long password
+   - `OPN_PUBLIC_KEY`: `pkey_…` from the Opn dashboard
+   - `OPN_SECRET_KEY`: `skey_…` from the Opn dashboard
+   - `GOOGLEPAY_MERCHANT_ID`: optional, needed for live Google Pay
 
-- ✅ Minimal styling (make it your own!)
-- ✅ 100/100 Lighthouse performance
-- ✅ SEO-friendly with canonical URLs and OpenGraph data
-- ✅ Sitemap support
-- ✅ RSS Feed support
-- ✅ Markdown & MDX support
-- ✅ Built-in Observability logging
+   Use the Opn **test** keys first and switch to the live keys when you're happy.
+3. **Connect your domain.** Under **Settings → Domains & Routes → Add → Custom domain**, add `bigpharmagroup.com`, and `www.bigpharmagroup.com` if you want it.
+4. **Load the products.** Open `https://bigpharmagroup.com/admin` and log in. Go to **Import / Export** and upload `products_import.csv`.
+5. **Fill in your links.** In **Admin → Settings**, add your LINE, Shopee and Lazada links when you have them.
+6. **Set up the Opn webhook.** In the Opn dashboard, go to **Webhooks** and add `https://bigpharmagroup.com/api/webhooks/opn`.
 
-<!-- dash-content-end -->
+After this, every push to `main` redeploys the site automatically.
 
-## Getting Started
+## Updating prices and stock
 
-Outside of this repo, you can start a new project with this template using [C3](https://developers.cloudflare.com/pages/get-started/c3/) (the `create-cloudflare` CLI):
+- **One product:** go to Admin → Products, search, change the price or stock in the table, then click **Save table edits**.
+- **Many products:** go to Admin → Import / Export.
+  - Download the CSV, edit it in Excel, and upload it again. Only the columns in the file are changed.
+  - Or upload the POS stock export. In Excel, use *Save As → CSV UTF-8*. Cost and profit columns are ignored.
+
+## Product images (optional)
+
+You can paste an image link on each product. To upload images directly instead:
+
+1. Create an R2 bucket.
+2. Add it to `wrangler.json` as the binding `IMAGES`:
+
+   ```json
+   "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "big-pharma-images" }]
+   ```
+
+## Local development
 
 ```bash
-npm create cloudflare@latest -- --template=cloudflare/templates/astro-blog-starter-template
+npm install
+cp .dev.vars.example .dev.vars   # set ADMIN_EMAIL / ADMIN_PASSWORD
+npm run preview                  # http://localhost:8787
 ```
-
-A live public deployment of this template is available at [https://astro-blog-starter-template.templates.workers.dev](https://astro-blog-starter-template.templates.workers.dev)
-
-## 🚀 Project Structure
-
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
-
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
-
-The `src/content/` directory contains "collections" of related Markdown and MDX documents. Use `getCollection()` to retrieve posts from `src/content/blog/`, and type-check your frontmatter using an optional schema. See [Astro's Content Collections docs](https://docs.astro.build/en/guides/content-collections/) to learn more.
-
-Any static assets, like images, can be placed in the `public/` directory.
-
-## 🧞 Commands
-
-All commands are run from the root of the project, from a terminal:
-
-| Command                           | Action                                           |
-| :-------------------------------- | :----------------------------------------------- |
-| `npm install`                     | Installs dependencies                            |
-| `npm run dev`                     | Starts local dev server at `localhost:4321`      |
-| `npm run build`                   | Build your production site to `./dist/`          |
-| `npm run preview`                 | Preview your build locally, before deploying     |
-| `npm run astro ...`               | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help`         | Get help using the Astro CLI                     |
-| `npm run build && npm run deploy` | Deploy your production site to Cloudflare        |
-| `npm wrangler tail`               | View real-time logs for all Workers              |
-
-## 👀 Want to learn more?
-
-Check out [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
-
-## Credit
-
-This theme is based off of the lovely [Bear Blog](https://github.com/HermanMartinus/bearblog/).
