@@ -1,6 +1,6 @@
 ---
 import Admin from "../../layouts/Admin.astro";
-import { CATEGORIES, CATEGORY_SLUGS, queryProducts, type ProductQuery } from "../../lib/catalog";
+import { CATEGORIES, CATEGORY_SLUGS, PUBLIC_SQL, isControlled, queryProducts, type ProductQuery } from "../../lib/catalog";
 import { first } from "../../lib/db";
 
 const { env } = Astro.locals;
@@ -10,17 +10,25 @@ const filters: ProductQuery = {
 	q: (sp.get("q") ?? "").trim(),
 	category: CATEGORY_SLUGS.includes(sp.get("category") as never) ? (sp.get("category") as string) : "",
 	image: sp.get("image") === "all" ? "" : image,
-	active: "yes",
+	controlled: (["yes", "no"].includes(sp.get("type") ?? "") ? sp.get("type") : "") as ProductQuery["controlled"],
+	active: (["yes", "no"].includes(sp.get("shown") ?? "") ? sp.get("shown") : "") as ProductQuery["active"],
 	includeInactive: true,
-	sort: "name",
+	sort: "noncontrolled_first",
 	page: Math.max(1, Number(sp.get("page")) || 1),
 	perPage: 30,
 };
 const result = await queryProducts(env.DB, filters);
-const counts = await first<{ total: number; with_img: number }>(
+const counts = await first<{ total: number; with_img: number; nc_total: number; nc_img: number; c_total: number; c_img: number }>(
 	env.DB,
-	"SELECT COUNT(*) total, SUM(CASE WHEN IFNULL(image_url,'') != '' THEN 1 ELSE 0 END) with_img FROM products WHERE active = 1",
+	`SELECT COUNT(*) total,
+	   SUM(IFNULL(image_url,'') != '') with_img,
+	   SUM(${PUBLIC_SQL}) nc_total,
+	   SUM(${PUBLIC_SQL} AND IFNULL(image_url,'') != '') nc_img,
+	   SUM(NOT ${PUBLIC_SQL}) c_total,
+	   SUM(NOT ${PUBLIC_SQL} AND IFNULL(image_url,'') != '') c_img
+	 FROM products`,
 );
+const type = sp.get("type") ?? "";
 function link(over: Record<string, string | number | null>) {
 	const p = new URLSearchParams(Astro.url.search);
 	for (const [k, v] of Object.entries(over)) {
@@ -33,11 +41,23 @@ const googleUrl = (q: string) => `https://www.google.com/search?tbm=isch&q=${enc
 ---
 
 <Admin title="Product photos">
-	<p class="small muted">{counts?.with_img ?? 0} of {counts?.total ?? 0} products on the site have a photo.</p>
+	<div class="stats">
+		<a class:list={["stat", { on: type === "no" }]} href={link({ type: "no", page: null })}><span class="small muted">Non-controlled (do these first)</span><b>{counts?.nc_img ?? 0} / {counts?.nc_total ?? 0}</b><span class="tiny muted">have a photo</span></a>
+		<a class:list={["stat", { on: type === "yes" }]} href={link({ type: "yes", page: null })}><span class="small muted">Controlled medicines</span><b>{counts?.c_img ?? 0} / {counts?.c_total ?? 0}</b><span class="tiny muted">have a photo</span></a>
+		<div class="stat export">
+			<span class="small muted">Download photos as a ZIP</span>
+			<div class="ex-btns">
+				<button type="button" class="btn btn-sm" data-export="">All photos ({counts?.with_img ?? 0})</button>
+				<button type="button" class="btn btn-sm btn-ghost" data-export="no">Non-controlled</button>
+				<button type="button" class="btn btn-sm btn-ghost" data-export="yes">Controlled</button>
+			</div>
+			<span class="tiny muted" data-export-status>Files are named “SKU - product name.jpg”</span>
+		</div>
+	</div>
 
 	<section class="card drop" data-drop>
 		<h2 class="h3">1 · Bulk upload photos named by SKU or barcode</h2>
-		<p class="small">Name each photo with the product's <strong>SKU</strong> (e.g. <code>IT-0000455.jpg</code>), <strong>barcode</strong> (e.g. <code>8850007850496.jpg</code>) or <strong>POS code</strong> (e.g. <code>455.jpg</code>), then drop them all here at once. Photos are resized automatically.</p>
+		<p class="small">Name each photo with the product's <strong>SKU</strong> (e.g. <code>IT-0000455.jpg</code> or an exported name like <code>IT-0000455 - Tylenol.jpg</code>), <strong>barcode</strong> (e.g. <code>8850007850496.jpg</code>) or <strong>POS code</strong> (e.g. <code>455.jpg</code>), then drop them all here at once. Photos are resized automatically.</p>
 		<label class="btn btn-ghost btn-sm" style="cursor:pointer">Choose photos <input type="file" accept="image/*" multiple data-bulk-input hidden /></label>
 		<span class="small muted">…or drag and drop files onto this box</span>
 		<div class="bulk-log small" data-bulk-log></div>
@@ -61,7 +81,23 @@ const googleUrl = (q: string) => `https://www.google.com/search?tbm=isch&q=${enc
 				</select>
 			</div>
 			<div class="field">
-				<label for="image">Show</label>
+				<label for="type">Type</label>
+				<select id="type" name="type">
+					<option value="" selected={!type}>All (non-controlled first)</option>
+					<option value="no" selected={type === "no"}>Non-controlled only</option>
+					<option value="yes" selected={type === "yes"}>Controlled medicines only</option>
+				</select>
+			</div>
+			<div class="field">
+				<label for="shown">On website</label>
+				<select id="shown" name="shown">
+					<option value="">Any</option>
+					<option value="yes" selected={sp.get("shown") === "yes"}>Shown</option>
+					<option value="no" selected={sp.get("shown") === "no"}>Hidden</option>
+				</select>
+			</div>
+			<div class="field">
+				<label for="image">Photo</label>
 				<select id="image" name="image">
 					<option value="no" selected={sp.get("image") !== "yes" && sp.get("image") !== "all"}>Missing a photo</option>
 					<option value="yes" selected={sp.get("image") === "yes"}>Has a photo</option>
@@ -80,6 +116,8 @@ const googleUrl = (q: string) => `https://www.google.com/search?tbm=isch&q=${enc
 					<div class="thumb" data-thumb>{p.image_url ? <img src={p.image_url} alt="" /> : <span class="tiny muted">No photo</span>}</div>
 					<div class="info">
 						<a href={`/admin/products/${p.id}`} class="pname">{p.name}</a>
+						{isControlled(p) ? <span class="badge badge-consult">Controlled</span> : <span class="badge">Non-controlled</span>}
+						{!p.active && <span class="badge badge-out">Hidden</span>}
 						<div class="tiny muted">
 							{p.sku}
 							{p.barcode && <> · {p.barcode}</>}
@@ -106,6 +144,50 @@ const googleUrl = (q: string) => `https://www.google.com/search?tbm=isch&q=${enc
 		{result.page < result.pages && <a class="btn btn-ghost btn-sm" href={link({ page: result.page + 1 })}>Next →</a>}
 	</nav>
 </Admin>
+
+<script>
+	import { ZipWriter, photoFileName } from "../../lib/zip-client";
+
+	document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((btn) =>
+		btn.addEventListener("click", async () => {
+			const status = document.querySelector<HTMLElement>("[data-export-status]")!;
+			const buttons = document.querySelectorAll<HTMLButtonElement>("[data-export]");
+			buttons.forEach((b) => (b.disabled = true));
+			try {
+				const which = btn.dataset.export ?? "";
+				const list: { sku: string; name: string; url: string; ext: string }[] = await (await fetch(`/api/admin/photo-list?controlled=${which}`)).json();
+				if (!list.length) {
+					status.textContent = "No photos to download yet.";
+					return;
+				}
+				const zip = new ZipWriter();
+				const used = new Set<string>();
+				for (const [i, item] of list.entries()) {
+					status.textContent = `Downloading ${i + 1} of ${list.length}…`;
+					const res = await fetch(item.url);
+					if (!res.ok) continue;
+					let name = photoFileName(item.sku, item.name, item.ext);
+					while (used.has(name)) name = name.replace(/(\.\w+)$/, "_$1");
+					used.add(name);
+					zip.add(name, new Uint8Array(await res.arrayBuffer()));
+				}
+				const blob = zip.finish();
+				const a = document.createElement("a");
+				a.href = URL.createObjectURL(blob);
+				a.download = `bigpharma-photos-${which === "no" ? "non-controlled-" : which === "yes" ? "controlled-" : ""}${new Date().toISOString().slice(0, 10)}.zip`;
+				document.body.appendChild(a);
+				a.click();
+				a.remove();
+				setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+				status.textContent = `Done — ${list.length} photos (${(blob.size / 1048576).toFixed(1)} MB).`;
+			} catch (err) {
+				status.textContent = `Download failed: ${(err as Error).message}`;
+			} finally {
+				buttons.forEach((b) => (b.disabled = false));
+			}
+		}),
+	);
+</script>
 
 <script>
 	import { uploadImage, imageFromUrl, imageFromPaste, openFacts, deleteImage, type UploadResult } from "../../lib/image-client";
@@ -228,6 +310,43 @@ const googleUrl = (q: string) => `https://www.google.com/search?tbm=isch&q=${enc
 </script>
 
 <style>
+	.stats {
+		display: grid;
+		grid-template-columns: 1fr 1fr 1.6fr;
+		gap: 12px;
+		margin-bottom: 16px;
+	}
+	@media (max-width: 900px) {
+		.stats {
+			grid-template-columns: 1fr;
+		}
+	}
+	.stat {
+		background: #fff;
+		border: 1px solid var(--line);
+		border-radius: var(--radius);
+		padding: 14px 16px;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		text-decoration: none;
+		color: var(--ink);
+	}
+	.stat.on {
+		border-color: var(--brand);
+		box-shadow: 0 0 0 2px var(--mint);
+	}
+	.stat b {
+		font-size: 1.4rem;
+	}
+	.ex-btns {
+		display: flex;
+		gap: 6px;
+		flex-wrap: wrap;
+	}
+	.pname + .badge {
+		margin-left: 6px;
+	}
 	.drop.over {
 		outline: 3px dashed var(--brand);
 		background: var(--brand-soft);

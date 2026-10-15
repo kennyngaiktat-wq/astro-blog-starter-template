@@ -207,6 +207,8 @@ export interface ProductQuery {
 	active?: "yes" | "no" | "";
 	stock?: "in" | "out" | "";
 	image?: "yes" | "no" | "";
+	/** "no" = non-controlled only, "yes" = controlled only */
+	controlled?: "yes" | "no" | "";
 	sort?: string;
 	page?: number;
 	perPage?: number;
@@ -234,6 +236,8 @@ export function buildProductWhere(q: ProductQuery) {
 	if (q.consult === "no") where.push("consult_required = 0");
 	if (q.stock === "in") where.push("stock > 0");
 	if (q.stock === "out") where.push("stock <= 0");
+	if (q.controlled === "no") where.push(PUBLIC_SQL);
+	if (q.controlled === "yes") where.push(`NOT ${PUBLIC_SQL}`);
 	if (q.image === "yes") where.push("IFNULL(image_url,'') != ''");
 	if (q.image === "no") where.push("IFNULL(image_url,'') = ''");
 	if (q.q) {
@@ -255,6 +259,7 @@ const SORTS: Record<string, string> = {
 	updated: "updated_at DESC",
 	stock: "stock ASC",
 	default: "featured DESC, (stock > 0) DESC, name COLLATE NOCASE ASC",
+	noncontrolled_first: "(consult_required = 1 OR category = 'other_medication') ASC, (stock > 0) DESC, name COLLATE NOCASE ASC",
 };
 
 export async function queryProducts(db: D1Database, q: ProductQuery) {

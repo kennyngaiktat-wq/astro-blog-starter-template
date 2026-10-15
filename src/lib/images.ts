@@ -13,8 +13,10 @@ export interface MatchedProduct {
 export async function matchProductByFilename(db: D1Database, filename: string): Promise<MatchedProduct | null> {
 	const stem = filename.replace(/\.[a-z0-9]+$/i, "").replace(/\s*\(\d+\)$/, "").trim();
 	if (!stem) return null;
-	const candidates = [stem];
-	if (/^\d{1,6}$/.test(stem)) candidates.push(`IT-${stem.padStart(7, "0")}`);
+	// Also accept exported names like "IT-0000455 - Tylenol 500mg.jpg"
+	const head = stem.split(/\s+-\s+|\s+/)[0];
+	const candidates = [...new Set([stem, head])];
+	if (/^\d{1,6}$/.test(head)) candidates.push(`IT-${head.padStart(7, "0")}`);
 	for (const c of candidates) {
 		const p = await first<MatchedProduct>(db, "SELECT id, sku, name, barcode FROM products WHERE sku = ? COLLATE NOCASE OR barcode = ? LIMIT 1", c, c);
 		if (p) return p;
