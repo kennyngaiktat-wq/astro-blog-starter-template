@@ -72,16 +72,17 @@ const marketplaces = [
 		<div class="wrap hero-grid">
 			<div class="hero-copy">
 				<p class="eyebrow"><Icon name="shield" size={18} /> {t(lang, "tagline")}</p>
-				<h1>{lang === "th" ? "ปรึกษาเภสัชกรฟรี ไม่ต้องรอคิว" : "Talk to a pharmacist — free, no queue"}</h1>
+				<h1>{lang === "th" ? "ทักถามเราได้ หรือแวะมาที่ร้าน" : "Questions? Ask us, or visit the shop"}</h1>
 				<p class="lead">
 					{
 						lang === "th"
-							? "เล่าอาการให้เภสัชกรของเราฟังผ่าน LINE หรือวิดีโอคอล รับคำแนะนำเรื่องยาที่เหมาะสม แล้วสั่งซื้อจัดส่งถึงบ้านหรือรับที่ร้าน"
-							: "Tell our pharmacist your symptoms on LINE or video call, get advice on the right medicine, then have it delivered or pick it up in store."
+							? "สอบถามสินค้า ราคา และสต็อกทาง LINE ได้ทุกวัน หรือแวะมาพบเภสัชกรที่ร้าน ยาจ่ายโดยเภสัชกรที่ร้านเท่านั้น"
+							: "Ask about products, prices and stock on LINE any day, or come and see our pharmacist in the shop. Medicines are dispensed by our pharmacist in store only."
 					}
 				</p>
 				<div class="hero-cta">
-					{settings.line_url && <a href={settings.line_url} class="btn btn-line btn-lg" target="_blank" rel="noopener"><img src="/social/line-white.svg" alt="" width="20" height="20" /> {lang === "th" ? "ปรึกษาเภสัชกรทาง LINE" : "Chat with a pharmacist on LINE"}</a>}
+					{settings.line_url && <a href={settings.line_url} class="btn btn-line btn-lg" target="_blank" rel="noopener"><img src="/social/line-white.svg" alt="" width="20" height="20" /> {lang === "th" ? "สอบถามทาง LINE" : "Ask us on LINE"}</a>}
+					<a href="/contact" class="btn btn-ghost btn-lg"><Icon name="map" size={18} /> {lang === "th" ? "เส้นทางมาร้าน" : "Directions to the shop"}</a>
 				</div>
 				<ul class="hero-points">
 					<li><Icon name="clock" size={18} /> {lang === "th" ? settings.hours_th : settings.hours_en}</li>
@@ -91,7 +92,7 @@ const marketplaces = [
 			</div>
 			<div class="hero-art">
 				<div class="bubble" aria-live="polite">
-					<span class="q">{lang === "th" ? "คุณมีอาการอย่างไรบ้าง?" : "What symptoms do you have?"}</span>
+					<span class="q">{lang === "th" ? "แวะมาคุยกับเภสัชกรที่ร้านเรื่อง" : "Come and talk to our pharmacist about"}</span>
 					<span class="ticker" aria-hidden="true">
 						<span class="ticker-track">
 							{[...symptoms, symptoms[0]].map((sy) => <span class="sym">{sy.label}</span>)}
@@ -99,12 +100,6 @@ const marketplaces = [
 					</span>
 				</div>
 				<img src="/pharmacist.svg" alt={lang === "th" ? "ภาพประกอบเภสัชกร" : "Pharmacist illustration"} width="420" height="460" class="pharmacist" />
-			</div>
-		</div>
-		<div class="wrap symptoms">
-			<span class="small">{lang === "th" ? "เลือกอาการเพื่อปรึกษาเภสัชกร:" : "Pick a symptom to ask our pharmacist:"}</span>
-			<div class="sym-chips">
-				{symptoms.map((sy) => <a class="chip" href={`/teleconsult?symptom=${encodeURIComponent(sy.label)}`}>{sy.icon} {sy.label}</a>)}
 			</div>
 		</div>
 	</section>
@@ -178,8 +173,8 @@ const marketplaces = [
 				<p class="muted">
 					{
 						lang === "th"
-							? "ยาบางรายการเราแสดงไว้เพื่อให้ทราบว่ามีจำหน่าย แต่ต้องได้รับคำแนะนำจากเภสัชกรก่อนจ่ายยา ทักหาเราได้เลย"
-							: "Some medicines are listed so you know we stock them, but they're only dispensed after a chat with our pharmacist. Get in touch any time."
+							? "ยาบางรายการต้องจ่ายโดยเภสัชกรที่ร้านเท่านั้น สอบถามว่ามีสินค้าหรือไม่ทาง LINE แล้วแวะมารับคำแนะนำที่ร้าน"
+							: "Some medicines can only be dispensed by our pharmacist in the shop. Ask on LINE whether we have it, then visit us for advice."
 					}
 				</p>
 			</div>

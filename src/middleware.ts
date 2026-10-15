@@ -31,9 +31,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	await ensureSchema(env.DB);
 	context.locals.settings = await loadSettings(env.DB);
 	context.locals.checkout = checkoutEnabled(context.locals.settings, env);
+	// Online consultation was retired — the site is "ask us on LINE or visit the shop"
+	if (/^\/teleconsult\/?$/.test(path)) return context.redirect("/contact", 301);
 	// Shop-only pages are switched off when online checkout is off
 	if (!context.locals.checkout && /^\/(cart|checkout)\/?$/.test(path)) return context.redirect("/products");
-	if (!context.locals.checkout && /^\/account(\/(register|login))?\/?$/.test(path)) return context.redirect("/teleconsult");
+	if (!context.locals.checkout && /^\/account(\/(register|login))?\/?$/.test(path)) return context.redirect("/contact");
 	if (!context.locals.checkout && /^\/api\/(checkout|pay)$/.test(path)) return Response.json({ error: "checkout_off" }, { status: 403 });
 	context.locals.user = await getCustomer(env.DB, context.cookies);
 

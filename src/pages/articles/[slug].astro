@@ -33,10 +33,10 @@ const cover = aCover(a);
 			<img src="/pharmacist.svg" alt="" width="90" height="98" />
 			<div>
 				<strong>{lang === "th" ? "มีคำถามเรื่องยาหรืออาการ?" : "Questions about a medicine or symptom?"}</strong>
-				<p class="small muted">{lang === "th" ? "ปรึกษาเภสัชกรของเราได้ฟรี" : "Ask our pharmacists — it's free."}</p>
+				<p class="small muted">{lang === "th" ? "สอบถามเภสัชกรทาง LINE หรือแวะมาที่ร้าน" : "Ask our pharmacist on LINE or visit the shop."}</p>
 				<div class="btns">
 					{settings.line_url && <a class="btn btn-line btn-sm" href={settings.line_url} target="_blank" rel="noopener"><img src="/social/line-white.svg" alt="" width="16" height="16" /> LINE</a>}
-					<a class="btn btn-ghost btn-sm" href="/teleconsult">{t(lang, "teleconsult")}</a>
+					<a class="btn btn-ghost btn-sm" href="/contact">{lang === "th" ? "แผนที่ร้าน" : "Find the shop"}</a>
 				</div>
 			</div>
 		</aside>

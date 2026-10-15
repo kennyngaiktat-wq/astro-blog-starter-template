@@ -82,7 +82,7 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 							settings.line_url && (
 								<a href={settings.line_url} class="btn btn-line btn-sm head-line" target="_blank" rel="noopener">
 									<img src="/social/line-white.svg" alt="" width="16" height="16" />
-									<span class="hide-sm">{lang === "th" ? "ปรึกษาเภสัชกร" : "Ask a pharmacist"}</span>
+									<span class="hide-sm">{lang === "th" ? "สอบถามทาง LINE" : "Ask us on LINE"}</span>
 								</a>
 							)
 						)
@@ -91,7 +91,6 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 			</div>
 			<nav class="cat-nav" data-menu>
 				<div class="wrap cat-row">
-					<a href="/teleconsult" class:list={["tele", { on: path.startsWith("/teleconsult") }]}><Icon name="chat" size={16} /> {t(lang, "teleconsult")}</a>
 					<a href="/products" class:list={{ on: path === "/products" && !Astro.url.searchParams.get("category") }}>{t(lang, "allProducts")}</a>
 					{
 						CATEGORIES.map((c) => (

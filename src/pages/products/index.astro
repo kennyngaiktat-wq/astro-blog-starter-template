@@ -93,10 +93,10 @@ function link(over: Record<string, string | number | null>) {
 					<img src="/pharmacist.svg" alt="" width="140" height="153" />
 					<div>
 						<h2>{lang === "th" ? "ยาที่ต้องได้รับคำแนะนำจากเภสัชกร" : "Medicines that need a pharmacist"}</h2>
-						<p>{lang === "th" ? "ร้านของเรามียาที่ต้องจ่ายโดยเภสัชกร ตามกฎหมายเราไม่สามารถแสดงรายการยาเหล่านี้ทางออนไลน์ได้ ปรึกษาเภสัชกรของเราเพื่อรับคำแนะนำและสอบถามยาที่ต้องการ" : "We stock medicines that must be supplied by a pharmacist. By law we can't list them online — talk to our pharmacist for advice and to ask about a specific medicine."}</p>
+						<p>{lang === "th" ? "ร้านของเรามียาที่ต้องจ่ายโดยเภสัชกร ตามกฎหมายเราไม่สามารถแสดงรายการยาเหล่านี้ทางออนไลน์ได้ สอบถามเภสัชกรทาง LINE หรือแวะมาที่ร้าน" : "We stock medicines that must be supplied by a pharmacist. By law we can't list them online — ask our pharmacist on LINE or visit the shop."}</p>
 						<div class="cbtns">
 							{Astro.locals.settings.line_url && <a class="btn btn-line" href={Astro.locals.settings.line_url} target="_blank" rel="noopener"><img src="/social/line-white.svg" alt="" width="18" height="18" /> {t(lang, "consultPharmacist")}</a>}
-							<a class="btn btn-ghost" href="/teleconsult">{t(lang, "teleconsult")}</a>
+							<a class="btn btn-ghost" href="/contact">{lang === "th" ? "แผนที่ร้าน" : "Find the shop"}</a>
 						</div>
 					</div>
 				</div>

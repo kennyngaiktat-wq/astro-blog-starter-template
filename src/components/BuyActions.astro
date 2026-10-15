@@ -28,8 +28,8 @@ const always = isAlwaysAvailable(p);
 					</a>
 				)}
 				{!sm && (
-					<a class={btn("btn-ghost")} href="/teleconsult">
-						<Icon name="chat" size={18} /> {t(lang, "teleconsult")}
+					<a class={btn("btn-ghost")} href={`tel:${settings.phone.replace(/[^0-9+]/g, "")}`}>
+						<Icon name="phone" size={18} /> {settings.phone}
 					</a>
 				)}
 			</>

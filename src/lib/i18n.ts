@@ -15,7 +15,7 @@ const dict = {
 	searchPlaceholder: { th: "ค้นหาชื่อยา ยี่ห้อ หรืออาการ…", en: "Search by product, brand or symptom…" },
 	addToCart: { th: "ใส่ตะกร้า", en: "Add to cart" },
 	added: { th: "เพิ่มแล้ว", en: "Added" },
-	consultPharmacist: { th: "ปรึกษาเภสัชกร", en: "Consult our pharmacist" },
+	consultPharmacist: { th: "สอบถามเภสัชกรทาง LINE", en: "Ask our pharmacist on LINE" },
 	consultBadge: { th: "ต้องปรึกษาเภสัชกร", en: "Pharmacist consultation" },
 	consultNote: {
 		th: "สินค้านี้มีจำหน่ายที่ร้านหลังจากได้รับคำแนะนำจากเภสัชกร ไม่สามารถสั่งซื้อออนไลน์ได้ กรุณาติดต่อเราทาง LINE หรือโทรศัพท์",
@@ -27,6 +27,10 @@ const dict = {
 	marketplaceNote: {
 		th: "สั่งซื้อสินค้านี้ได้ที่ร้านของเราบน Shopee หรือ Lazada หรือทักหาเราทาง LINE",
 		en: "Order this item from our Shopee or Lazada store, or message us on LINE.",
+	},
+	medicineNote: {
+		th: "ยาจ่ายโดยเภสัชกรที่ร้านเท่านั้น สอบถามว่ามีสินค้าทาง LINE หรือโทรหาเรา แล้วแวะมารับที่ร้าน",
+		en: "Medicines are dispensed by our pharmacist in the shop only. Ask on LINE or call to check we have it, then pick it up in store.",
 	},
 	lineOrderNote: {
 		th: "สั่งซื้อหรือสอบถามสินค้านี้ได้ทาง LINE หรือโทรหาเรา",
