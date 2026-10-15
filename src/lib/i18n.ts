@@ -36,6 +36,7 @@ const dict = {
 	priceOnRequest: { th: "สอบถามราคา", en: "Price on request" },
 	orderOnLine: { th: "สั่งทาง LINE", en: "Order on LINE" },
 	consultLine: { th: "ปรึกษาทาง LINE", en: "Ask on LINE" },
+	askPharmacistLine: { th: "สอบถามเภสัชกรทาง LINE", en: "Ask our pharmacist on LINE" },
 	enquiryNote: {
 		th: "สินค้ามีพร้อมจำหน่าย สั่งซื้อหรือสอบถามรายละเอียด ราคา การจัดส่ง และการติดตั้งได้ทาง LINE เภสัชกรและทีมงานพร้อมให้คำแนะนำ",
 		en: "Available to order. Message us on LINE for price, delivery, set-up and advice from our team.",

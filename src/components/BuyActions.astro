@@ -1,7 +1,7 @@
 ---
 // The call-to-action buttons for a product, shared by product cards and the product page.
 import Icon from "./Icon.astro";
-import { buyInfo, isAlwaysAvailable, type Product } from "../lib/catalog";
+import { buyInfo, isAlwaysAvailable, isMedicine, type Product } from "../lib/catalog";
 import { t } from "../lib/i18n";
 
 interface Props {
@@ -83,7 +83,7 @@ const always = isAlwaysAvailable(p);
 		info.action === "line" && line && (
 			<a class={btn("btn-line")} href={line} target="_blank" rel="noopener">
 				<img src="/social/line-white.svg" alt="" width="16" height="16" />
-				<span>{info.outOfStock ? t(lang, "askAvailability") : t(lang, "orderOnLine")}</span>
+				<span>{isMedicine(p) ? t(lang, "askPharmacistLine") : info.outOfStock ? t(lang, "askAvailability") : t(lang, "orderOnLine")}</span>
 			</a>
 		)
 	}

@@ -70,10 +70,10 @@ export const DEFAULT_SETTINGS: Settings = {
 	tiktok_url: "",
 	show_controlled: "0",
 	pharmacy_license_no: "",
-	pharmacist_name: "",
-	pharmacist_license_no: "",
-	pharmacist_hours_th: "",
-	pharmacist_hours_en: "",
+	pharmacist_name: "ภญ. วรรณกานต์ อิ้ง เสมานารถ",
+	pharmacist_license_no: "ภ. 47434",
+	pharmacist_hours_th: "ทุกวัน 09:00 – 21:00 น.",
+	pharmacist_hours_en: "Daily 9:00 AM – 9:00 PM",
 };
 
 export const SETTING_KEYS = Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[];
@@ -86,7 +86,7 @@ export async function loadSettings(db: D1Database): Promise<Settings> {
 	const value = { ...DEFAULT_SETTINGS };
 	for (const r of rows) {
 		if (!(r.key in value)) continue;
-		const canBeBlank = r.key.endsWith("_url") || r.key.startsWith("announcement") || r.key.startsWith("refund_policy") || ["email", "intl_zones"].includes(r.key) || r.key.startsWith("pharmac");
+		const canBeBlank = r.key.endsWith("_url") || r.key.startsWith("announcement") || r.key.startsWith("refund_policy") || ["email", "intl_zones"].includes(r.key) || r.key === "pharmacy_license_no";
 		if ((r.value ?? "") === "" && !canBeBlank) continue; // keep the default for required shop details
 		(value as Record<string, string>)[r.key] = r.value ?? "";
 	}

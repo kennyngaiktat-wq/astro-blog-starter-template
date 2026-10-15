@@ -166,8 +166,13 @@ export function hideControlled(_settings: unknown): boolean {
 	return false;
 }
 
+/** Any medicine (OTC or other). Medicines are never sold through the website cart — only in the shop or after a pharmacist consultation. */
+export function isMedicine(p: Pick<Product, "category">): boolean {
+	return p.category === "otc" || p.category === "other_medication";
+}
+
 export function canBuyOnline(p: Pick<Product, "consult_required" | "category" | "active" | "price_satang">): boolean {
-	return p.active === 1 && !isControlled(p) && p.price_satang > 0;
+	return p.active === 1 && !isControlled(p) && !isMedicine(p) && p.price_satang > 0;
 }
 
 export type BuyAction = "cart" | "consult" | "marketplace" | "line";
@@ -191,7 +196,7 @@ export function buyInfo(
 	const lazada = p.lazada_url || null;
 	if (isControlled(p)) return { action: "consult", available: false, outOfStock: false, shopee: null, lazada: null };
 	if (ctx.checkout && canBuyOnline(p) && !outOfStock) return { action: "cart", available: true, outOfStock, shopee, lazada };
-	if (!ctx.checkout && (shopee || lazada)) return { action: "marketplace", available: !outOfStock, outOfStock, shopee, lazada };
+	if ((!ctx.checkout || isMedicine(p)) && (shopee || lazada)) return { action: "marketplace", available: !outOfStock, outOfStock, shopee, lazada };
 	return { action: "line", available: always || !outOfStock, outOfStock, shopee: null, lazada: null };
 }
 
