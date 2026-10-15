@@ -90,6 +90,16 @@ const groups: { title: string; fields: { key: keyof Settings; label: string; hin
 	{msg && <div class="alert alert-ok">{msg}</div>}
 	<form method="post">
 		<section class="card">
+			<h2 class="h3">Pharmacy licence &amp; pharmacist (shown in the footer and on Contact)</h2>
+			<div class="grid-2">
+				<div class="field"><label for="pharmacy_license_no">Pharmacy licence no. (ใบอนุญาตขายยา ขย.)</label><input id="pharmacy_license_no" name="pharmacy_license_no" value={s.pharmacy_license_no} placeholder="e.g. สป 123/2567" /></div>
+				<div class="field"><label for="pharmacist_name">Pharmacist on duty (name)</label><input id="pharmacist_name" name="pharmacist_name" value={s.pharmacist_name} placeholder="ภก. / ภญ. …" /></div>
+				<div class="field"><label for="pharmacist_license_no">Pharmacist licence no. (ภ.)</label><input id="pharmacist_license_no" name="pharmacist_license_no" value={s.pharmacist_license_no} placeholder="ภ. 12345" /></div>
+				<div class="field"><label for="pharmacist_hours_th">Pharmacist on-duty hours (Thai)</label><input id="pharmacist_hours_th" name="pharmacist_hours_th" value={s.pharmacist_hours_th} placeholder="ทุกวัน 09:00 – 22:00 น." /></div>
+				<div class="field"><label for="pharmacist_hours_en">Pharmacist on-duty hours (English)</label><input id="pharmacist_hours_en" name="pharmacist_hours_en" value={s.pharmacist_hours_en} placeholder="Daily 9 AM – 10 PM" /></div>
+			</div>
+		</section>
+		<section class="card">
 			<h2 class="h3">Online checkout</h2>
 			<div class="field" style="max-width:520px">
 				<label for="checkout_mode">How customers buy</label>

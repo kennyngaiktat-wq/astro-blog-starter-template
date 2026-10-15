@@ -158,6 +158,14 @@ export function isAlwaysAvailable(p: Pick<Product, "category">): boolean {
 }
 
 /** Can go in the cart (server-side rule; stock is checked separately). */
+/** SQL condition for products that may be shown to the public when controlled medicines are hidden. */
+export const PUBLIC_SQL = "(consult_required = 0 AND category != 'other_medication')";
+
+/** Controlled medicines are hidden per product (active = 0) rather than site-wide. */
+export function hideControlled(_settings: unknown): boolean {
+	return false;
+}
+
 export function canBuyOnline(p: Pick<Product, "consult_required" | "category" | "active" | "price_satang">): boolean {
 	return p.active === 1 && !isControlled(p) && p.price_satang > 0;
 }
@@ -203,12 +211,15 @@ export interface ProductQuery {
 	page?: number;
 	perPage?: number;
 	includeInactive?: boolean;
+	/** Leave out controlled medicines (public pages, unless the shop chooses to show them). */
+	hideControlled?: boolean;
 }
 
 export function buildProductWhere(q: ProductQuery) {
 	const where: string[] = [];
 	const params: unknown[] = [];
 	if (!q.includeInactive) where.push("active = 1");
+	if (q.hideControlled) where.push(PUBLIC_SQL);
 	if (q.active === "yes") where.push("active = 1");
 	if (q.active === "no") where.push("active = 0");
 	if (q.category) {

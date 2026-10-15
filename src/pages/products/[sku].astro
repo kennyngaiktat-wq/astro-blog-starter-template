@@ -3,14 +3,15 @@ import Base from "../../layouts/Base.astro";
 import Icon from "../../components/Icon.astro";
 import ProductCard from "../../components/ProductCard.astro";
 import BuyActions from "../../components/BuyActions.astro";
-import { CATEGORIES, baht, buyInfo, displayDescription, displayName, splitTags, tagLabel, type Product } from "../../lib/catalog";
+import { CATEGORIES, PUBLIC_SQL, baht, buyInfo, displayDescription, displayName, hideControlled, isControlled, splitTags, tagLabel, type Product } from "../../lib/catalog";
 import { all, first } from "../../lib/db";
 import { t } from "../../lib/i18n";
 
 const { lang, user, settings, env, checkout } = Astro.locals;
 const sku = decodeURIComponent(Astro.params.sku ?? "");
 const p = await first<Product>(env.DB, "SELECT * FROM products WHERE sku = ? AND active = 1", sku);
-if (!p) {
+const hide = hideControlled(settings);
+if (!p || (hide && isControlled(p))) {
 	return Astro.rewrite("/404");
 }
 const cat = CATEGORIES.find((c) => c.slug === p.category);
@@ -19,7 +20,7 @@ const pct = checkout ? Number(settings.member_discount_pct) || 0 : 0;
 const memberPrice = Math.round(p.price_satang * (1 - pct / 100));
 const related = await all<Product>(
 	env.DB,
-	"SELECT * FROM products WHERE active = 1 AND category = ? AND id != ? ORDER BY (image_url IS NOT NULL) DESC, (stock > 0) DESC, RANDOM() LIMIT 4",
+	`SELECT * FROM products WHERE active = 1 ${hide ? `AND ${PUBLIC_SQL}` : ""} AND category = ? AND id != ? ORDER BY (image_url IS NOT NULL) DESC, (stock > 0) DESC, RANDOM() LIMIT 4`,
 	p.category,
 	p.id,
 );

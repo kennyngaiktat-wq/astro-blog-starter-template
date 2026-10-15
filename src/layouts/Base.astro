@@ -118,6 +118,13 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 					<p class="small foot-line"><Icon name="map" size={18} /> {lang === "th" ? settings.address_th : settings.address_en}</p>
 					<p class="small foot-line"><Icon name="clock" size={18} /> {lang === "th" ? settings.hours_th : settings.hours_en}</p>
 					<p class="small foot-line"><Icon name="phone" size={18} /> <a href={telHref}>{settings.phone}</a></p>
+					{(settings.pharmacy_license_no || settings.pharmacist_name) && (
+						<p class="tiny lic">
+							{settings.pharmacy_license_no && <>{lang === "th" ? "ใบอนุญาตขายยา" : "Pharmacy licence"}: {settings.pharmacy_license_no}<br /></>}
+							{settings.pharmacist_name && <>{lang === "th" ? "เภสัชกรผู้มีหน้าที่ปฏิบัติการ" : "Pharmacist on duty"}: {settings.pharmacist_name}{settings.pharmacist_license_no && ` (${settings.pharmacist_license_no})`}</>}
+							{(lang === "th" ? settings.pharmacist_hours_th : settings.pharmacist_hours_en) && <><br />{lang === "th" ? "เวลาปฏิบัติการ" : "On duty"}: {lang === "th" ? settings.pharmacist_hours_th : settings.pharmacist_hours_en}</>}
+						</p>
+					)}
 					<div class="socials">
 						{settings.facebook_url && <a href={settings.facebook_url} target="_blank" rel="noopener" aria-label="Facebook" class="soc"><img src="/social/facebook.svg" alt="Facebook" width="22" height="22" /></a>}
 						{settings.line_url && <a href={settings.line_url} target="_blank" rel="noopener" aria-label="LINE" class="soc"><img src="/social/line.svg" alt="LINE" width="22" height="22" /></a>}
@@ -443,6 +450,11 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 			.foot-line :global(svg) {
 				flex: none;
 				margin-top: 2px;
+			}
+			.lic {
+				color: #a9cfc2;
+				margin: 10px 0 0;
+				line-height: 1.6;
 			}
 			.socials {
 				display: flex;

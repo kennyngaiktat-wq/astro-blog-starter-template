@@ -29,6 +29,12 @@ export interface Settings {
 	refund_policy_en: string;
 	checkout_mode: string;
 	tiktok_url: string;
+	show_controlled: string;
+	pharmacy_license_no: string;
+	pharmacist_name: string;
+	pharmacist_license_no: string;
+	pharmacist_hours_th: string;
+	pharmacist_hours_en: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -62,6 +68,12 @@ export const DEFAULT_SETTINGS: Settings = {
 	refund_policy_en: "",
 	checkout_mode: "auto",
 	tiktok_url: "",
+	show_controlled: "0",
+	pharmacy_license_no: "",
+	pharmacist_name: "",
+	pharmacist_license_no: "",
+	pharmacist_hours_th: "",
+	pharmacist_hours_en: "",
 };
 
 export const SETTING_KEYS = Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[];
@@ -74,7 +86,7 @@ export async function loadSettings(db: D1Database): Promise<Settings> {
 	const value = { ...DEFAULT_SETTINGS };
 	for (const r of rows) {
 		if (!(r.key in value)) continue;
-		const canBeBlank = r.key.endsWith("_url") || r.key.startsWith("announcement") || r.key.startsWith("refund_policy") || ["email", "intl_zones"].includes(r.key);
+		const canBeBlank = r.key.endsWith("_url") || r.key.startsWith("announcement") || r.key.startsWith("refund_policy") || ["email", "intl_zones"].includes(r.key) || r.key.startsWith("pharmac");
 		if ((r.value ?? "") === "" && !canBeBlank) continue; // keep the default for required shop details
 		(value as Record<string, string>)[r.key] = r.value ?? "";
 	}

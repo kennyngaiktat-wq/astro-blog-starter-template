@@ -155,7 +155,7 @@ export async function importProducts(db: D1Database, text: string, opts: { creat
 				stock: upd.stock ?? 0,
 				category: upd.category ?? def.category,
 				consult_required: upd.consult_required ?? def.consult,
-				active: upd.active ?? 1,
+				active: upd.active ?? ((upd.consult_required ?? def.consult) || (upd.category ?? def.category) === "other_medication" ? 0 : 1), // controlled medicines start hidden
 				featured: upd.featured ?? 0,
 				tags: upd.tags ?? "",
 				description: upd.description ?? null,

@@ -2,7 +2,7 @@
 import Base from "../layouts/Base.astro";
 import Icon from "../components/Icon.astro";
 import ProductCard from "../components/ProductCard.astro";
-import { CATEGORIES, TAG_LABELS, tagLabel, type Product } from "../lib/catalog";
+import { CATEGORIES, PUBLIC_SQL, TAG_LABELS, hideControlled, tagLabel, type Product } from "../lib/catalog";
 import { all } from "../lib/db";
 import { t } from "../lib/i18n";
 import { ARTICLE_LIST_COLS, aCover, aExcerpt, aTitle, type Article } from "../lib/articles";
@@ -11,7 +11,7 @@ const { lang, user, settings, env, checkout } = Astro.locals;
 const db = env.DB;
 const pct = checkout ? Number(settings.member_discount_pct) || 0 : 0;
 
-const counts = await all<{ category: string; n: number }>(db, "SELECT category, COUNT(*) AS n FROM products WHERE active = 1 GROUP BY category");
+const counts = await all<{ category: string; n: number }>(db, `SELECT category, COUNT(*) AS n FROM products WHERE active = 1 ${hideControlled(settings) ? `AND ${PUBLIC_SQL}` : ""} GROUP BY category`);
 const countOf = (slug: string) => counts.find((c) => c.category === slug)?.n ?? 0;
 
 let featured = await all<Product>(
@@ -123,7 +123,7 @@ const marketplaces = [
 						</span>
 						<span class="cat-name">{c[lang]}</span>
 						<span class="cat-desc small">{lang === "th" ? c.descTh : c.descEn}</span>
-						<span class="cat-n tiny">{t(lang, "results", { n: countOf(c.slug).toLocaleString() })}</span>
+						<span class="cat-n tiny">{c.slug === "other_medication" && countOf(c.slug) === 0 ? t(lang, "consultPharmacist") + " →" : t(lang, "results", { n: countOf(c.slug).toLocaleString() })}</span>
 					</a>
 				))
 			}

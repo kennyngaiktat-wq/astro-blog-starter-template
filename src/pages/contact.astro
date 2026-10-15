@@ -31,6 +31,8 @@ const links = [
 				<p class="row"><Icon name="map" /><span><strong>{t(lang, "address")}</strong><br />{lang === "th" ? settings.address_th : settings.address_en}</span></p>
 				<p class="row"><Icon name="clock" /><span><strong>{t(lang, "openingHours")}</strong><br />{lang === "th" ? settings.hours_th : settings.hours_en}</span></p>
 				<p class="row"><Icon name="phone" /><span><strong>{t(lang, "callUs")}</strong><br /><a href={tel}>{settings.phone}</a></span></p>
+				{settings.pharmacy_license_no && <p class="row"><Icon name="shield" /><span><strong>{lang === "th" ? "ใบอนุญาตขายยา" : "Pharmacy licence"}</strong><br />{settings.pharmacy_license_no}</span></p>}
+				{settings.pharmacist_name && <p class="row"><Icon name="user" /><span><strong>{lang === "th" ? "เภสัชกรผู้มีหน้าที่ปฏิบัติการ" : "Pharmacist on duty"}</strong><br />{settings.pharmacist_name}{settings.pharmacist_license_no && ` (${settings.pharmacist_license_no})`}{(lang === "th" ? settings.pharmacist_hours_th : settings.pharmacist_hours_en) && <><br />{lang === "th" ? settings.pharmacist_hours_th : settings.pharmacist_hours_en}</>}</span></p>}
 				{settings.email && <p class="row"><Icon name="chat" /><span><strong>{t(lang, "email")}</strong><br /><a href={`mailto:${settings.email}`}>{settings.email}</a></span></p>}
 				<div class="btns">
 					<a class="btn" href={mapsLink} target="_blank" rel="noopener"><Icon name="map" size={18} /> {t(lang, "openInMaps")}</a>
