@@ -115,6 +115,8 @@ export interface Product {
 	weight_g: number | null;
 	intl_ok: number | null;
 	image_rev: number;
+	shopee_url: string | null;
+	lazada_url: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -145,13 +147,44 @@ export function toSatang(v: string | number): number {
 	return Number.isFinite(n) ? Math.round(n * 100) : NaN;
 }
 
-/** Medical equipment (wheelchairs, beds, monitors…) is always "available — ask us on LINE". */
-export function isEnquiryItem(p: Pick<Product, "category">): boolean {
+/** Controlled medicines: listed, but only supplied after a pharmacist consultation. */
+export function isControlled(p: Pick<Product, "consult_required" | "category">): boolean {
+	return p.consult_required === 1 || p.category === "other_medication";
+}
+
+/** Medical equipment (wheelchairs, beds…) is always shown as available, even with no stock on hand. */
+export function isAlwaysAvailable(p: Pick<Product, "category">): boolean {
 	return p.category === "medical_equipment";
 }
 
-export function canBuyOnline(p: Pick<Product, "consult_required" | "category" | "active">): boolean {
-	return p.active === 1 && p.consult_required !== 1 && p.category !== "other_medication" && !isEnquiryItem(p);
+/** Can go in the cart (server-side rule; stock is checked separately). */
+export function canBuyOnline(p: Pick<Product, "consult_required" | "category" | "active" | "price_satang">): boolean {
+	return p.active === 1 && !isControlled(p) && p.price_satang > 0;
+}
+
+export type BuyAction = "cart" | "consult" | "marketplace" | "line";
+
+export interface BuyInfo {
+	action: BuyAction;
+	available: boolean; // show "in stock / available"
+	outOfStock: boolean;
+	shopee: string | null;
+	lazada: string | null;
+}
+
+/** Decides which button a product shows, given whether online checkout is switched on. */
+export function buyInfo(
+	p: Pick<Product, "consult_required" | "category" | "active" | "price_satang" | "stock" | "shopee_url" | "lazada_url">,
+	ctx: { checkout: boolean; shopShopee?: string; shopLazada?: string },
+): BuyInfo {
+	const always = isAlwaysAvailable(p);
+	const outOfStock = !always && p.stock <= 0;
+	const shopee = p.shopee_url || null;
+	const lazada = p.lazada_url || null;
+	if (isControlled(p)) return { action: "consult", available: false, outOfStock: false, shopee: null, lazada: null };
+	if (ctx.checkout && canBuyOnline(p) && !outOfStock) return { action: "cart", available: true, outOfStock, shopee, lazada };
+	if (!ctx.checkout && (shopee || lazada)) return { action: "marketplace", available: !outOfStock, outOfStock, shopee, lazada };
+	return { action: "line", available: always || !outOfStock, outOfStock, shopee: null, lazada: null };
 }
 
 export function displayDescription(p: Pick<Product, "description" | "description_en">, lang: Lang): string {

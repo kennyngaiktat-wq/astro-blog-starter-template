@@ -10,7 +10,7 @@ interface Props {
 	noindex?: boolean;
 }
 
-const { lang, user, settings } = Astro.locals;
+const { lang, user, settings, checkout } = Astro.locals;
 const shopName = lang === "th" ? settings.shop_name_th : settings.shop_name_en;
 const { title, description = t(lang, "heroText"), noindex = false } = Astro.props;
 const fullTitle = title ? `${title} | ${settings.shop_name_en}` : `${settings.shop_name_en} — ${t(lang, "tagline")}`;
@@ -66,18 +66,32 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 					<a class="lang-switch" href={`/api/lang?to=${lang === "th" ? "en" : "th"}&back=${back}`} title="ภาษาไทย / English">
 						<span class:list={{ on: lang === "th" }}>TH</span><span class:list={{ on: lang === "en" }}>EN</span>
 					</a>
-					<a href={user ? "/account" : "/account/login"} class="icon-btn" aria-label={t(lang, "account")}>
-						<Icon name="user" />
-						<span class="hide-sm">{user ? user.name.split(" ")[0] : t(lang, "login")}</span>
-					</a>
-					<a href="/cart" class="icon-btn cart-link" aria-label={t(lang, "cart")}>
-						<Icon name="cart" />
-						<span class="cart-count" data-cart-count hidden>0</span>
-					</a>
+					{
+						checkout ? (
+							<>
+								<a href={user ? "/account" : "/account/login"} class="icon-btn" aria-label={t(lang, "account")}>
+									<Icon name="user" />
+									<span class="hide-sm">{user ? user.name.split(" ")[0] : t(lang, "login")}</span>
+								</a>
+								<a href="/cart" class="icon-btn cart-link" aria-label={t(lang, "cart")}>
+									<Icon name="cart" />
+									<span class="cart-count" data-cart-count hidden>0</span>
+								</a>
+							</>
+						) : (
+							settings.line_url && (
+								<a href={settings.line_url} class="btn btn-line btn-sm head-line" target="_blank" rel="noopener">
+									<img src="/social/line-white.svg" alt="" width="16" height="16" />
+									<span class="hide-sm">{lang === "th" ? "ปรึกษาเภสัชกร" : "Ask a pharmacist"}</span>
+								</a>
+							)
+						)
+					}
 				</nav>
 			</div>
 			<nav class="cat-nav" data-menu>
 				<div class="wrap cat-row">
+					<a href="/teleconsult" class:list={["tele", { on: path.startsWith("/teleconsult") }]}><Icon name="chat" size={16} /> {t(lang, "teleconsult")}</a>
 					<a href="/products" class:list={{ on: path === "/products" && !Astro.url.searchParams.get("category") }}>{t(lang, "allProducts")}</a>
 					{
 						CATEGORIES.map((c) => (
@@ -86,6 +100,7 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 							</a>
 						))
 					}
+					<a href="/articles" class:list={{ on: path.startsWith("/articles") }}>{t(lang, "articles")}</a>
 					<a href="/contact" class:list={{ on: path === "/contact" }}>{t(lang, "contact")}</a>
 				</div>
 			</nav>
@@ -106,6 +121,9 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 					<div class="socials">
 						{settings.facebook_url && <a href={settings.facebook_url} target="_blank" rel="noopener" aria-label="Facebook" class="soc"><img src="/social/facebook.svg" alt="Facebook" width="22" height="22" /></a>}
 						{settings.line_url && <a href={settings.line_url} target="_blank" rel="noopener" aria-label="LINE" class="soc"><img src="/social/line.svg" alt="LINE" width="22" height="22" /></a>}
+						{settings.shopee_url && <a href={settings.shopee_url} target="_blank" rel="noopener" aria-label="Shopee" class="soc"><img src="/social/shopee.svg" alt="Shopee" width="22" height="22" /></a>}
+						{settings.lazada_url && <a href={settings.lazada_url} target="_blank" rel="noopener" aria-label="Lazada" class="soc"><img src="/social/lazada.svg" alt="Lazada" width="24" height="24" class="lzd-heart" /></a>}
+						{settings.tiktok_url && <a href={settings.tiktok_url} target="_blank" rel="noopener" aria-label="TikTok" class="soc"><img src="/social/tiktok.svg" alt="TikTok" width="20" height="20" /></a>}
 					</div>
 				</div>
 				<div>
@@ -126,7 +144,7 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 					</ul>
 				</div>
 			</div>
-			<div class="wrap pay-strip">
+			{checkout && <div class="wrap pay-strip">
 				<span class="tiny muted">{lang === "th" ? "ช่องทางชำระเงิน" : "We accept"}</span>
 				<ul class="pay-logos">
 					<li><img src="/pay/promptpay.png" alt="PromptPay" height="22" /></li>
@@ -135,7 +153,7 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 					<li><img src="/pay/mastercard.svg" alt="Mastercard" height="22" /></li>
 					<li><img src="/pay/jcb.svg" alt="JCB" height="22" /></li>
 				</ul>
-			</div>
+			</div>}
 			<div class="wrap foot-base tiny muted">
 				© {new Date().getFullYear()} {settings.shop_name_en}
 				<span class="credit">{lang === "th" ? "ภาพสินค้าบางส่วน: Open Food Facts (CC BY-SA)" : "Some product photos: Open Food Facts contributors (CC BY-SA)"}</span>
@@ -185,14 +203,16 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 
 		<style>
 			.announce {
-				background: var(--brand-ink);
-				color: #e9f6f1;
+				background: #4fcca4;
+				color: #08372b;
+				font-weight: 600;
 				text-align: center;
 				font-size: 0.85rem;
 				padding: 6px 16px;
 			}
 			.site-header {
 				background: #fff;
+				border-top: 4px solid #4fcca4;
 				border-bottom: 1px solid var(--line);
 				position: sticky;
 				top: 0;
@@ -278,6 +298,9 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 			.menu-btn {
 				display: none;
 			}
+			.head-line {
+				margin-left: 4px;
+			}
 			.cart-count {
 				position: absolute;
 				top: 2px;
@@ -330,6 +353,13 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 				white-space: nowrap;
 				border-bottom: 2px solid transparent;
 			}
+			.cat-row a.tele {
+				color: var(--brand);
+				font-weight: 600;
+				display: inline-flex;
+				gap: 6px;
+				align-items: center;
+			}
 			.cat-row a:hover,
 			.cat-row a.on {
 				color: var(--brand-ink);
@@ -372,8 +402,8 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 			}
 			.site-footer {
 				margin-top: 64px;
-				background: #0f2a24;
-				color: #cfe3dc;
+				background: #0b3d30;
+				color: #d3efe4;
 				padding: 44px 0 20px;
 			}
 			.site-footer a {
@@ -427,6 +457,10 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 				display: grid;
 				place-items: center;
 			}
+			.lzd-heart {
+				object-fit: cover;
+				object-position: left center;
+			}
 			.soc:hover {
 				transform: translateY(-1px);
 			}
@@ -470,7 +504,7 @@ const telHref = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 			.foot-base {
 				margin-top: 20px;
 				padding-top: 16px;
-				border-top: 1px solid #23413a;
+				border-top: 1px solid #1d5646;
 			}
 			@media (max-width: 760px) {
 				.foot-grid {

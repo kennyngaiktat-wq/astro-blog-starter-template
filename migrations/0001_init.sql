@@ -105,3 +105,48 @@ CREATE TABLE IF NOT EXISTS product_images (
   source TEXT,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Online pharmacist consultation requests
+CREATE TABLE IF NOT EXISTS consult_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  customer_id INTEGER,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  line_id TEXT,
+  channel TEXT NOT NULL DEFAULT 'line',   -- line | phone | video
+  preferred_time TEXT,
+  symptoms TEXT NOT NULL,
+  age TEXT,
+  allergies TEXT,
+  current_meds TEXT,
+  status TEXT NOT NULL DEFAULT 'new',     -- new | contacted | done | cancelled
+  admin_notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Articles / health blog
+CREATE TABLE IF NOT EXISTS articles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  slug TEXT NOT NULL UNIQUE,
+  title_th TEXT NOT NULL,
+  title_en TEXT,
+  excerpt_th TEXT,
+  excerpt_en TEXT,
+  body_th TEXT,
+  body_en TEXT,
+  cover_media_id INTEGER,
+  tags TEXT NOT NULL DEFAULT '',
+  published INTEGER NOT NULL DEFAULT 0,
+  published_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Uploaded images for articles (cover + inline pictures)
+CREATE TABLE IF NOT EXISTS media (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  mime TEXT NOT NULL,
+  data BLOB NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

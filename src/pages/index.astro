@@ -5,10 +5,11 @@ import ProductCard from "../components/ProductCard.astro";
 import { CATEGORIES, TAG_LABELS, tagLabel, type Product } from "../lib/catalog";
 import { all } from "../lib/db";
 import { t } from "../lib/i18n";
+import { ARTICLE_LIST_COLS, aCover, aExcerpt, aTitle, type Article } from "../lib/articles";
 
-const { lang, user, settings, env } = Astro.locals;
+const { lang, user, settings, env, checkout } = Astro.locals;
 const db = env.DB;
-const pct = Number(settings.member_discount_pct) || 0;
+const pct = checkout ? Number(settings.member_discount_pct) || 0 : 0;
 
 const counts = await all<{ category: string; n: number }>(db, "SELECT category, COUNT(*) AS n FROM products WHERE active = 1 GROUP BY category");
 const countOf = (slug: string) => counts.find((c) => c.category === slug)?.n ?? 0;
@@ -23,6 +24,35 @@ const equipment = await all<Product>(
 	db,
 	"SELECT * FROM products WHERE active = 1 AND category = 'medical_equipment' ORDER BY featured DESC, updated_at DESC LIMIT 4",
 );
+
+const symptoms =
+	lang === "th"
+		? [
+				{ icon: "🤕", label: "ปวดหัว", tag: "pain-fever" },
+				{ icon: "🤒", label: "มีไข้", tag: "pain-fever" },
+				{ icon: "😷", label: "เจ็บคอ ไอ", tag: "cough-cold" },
+				{ icon: "🤧", label: "ภูมิแพ้ คัดจมูก", tag: "allergy" },
+				{ icon: "🤢", label: "ท้องเสีย ท้องอืด", tag: "digestive" },
+				{ icon: "🔥", label: "กรดไหลย้อน", tag: "digestive" },
+				{ icon: "💪", label: "ปวดกล้ามเนื้อ", tag: "muscle-joint" },
+				{ icon: "🩹", label: "ผื่นคัน ผิวหนัง", tag: "skin" },
+				{ icon: "🌙", label: "ปวดประจำเดือน", tag: "womens-health" },
+				{ icon: "👁️", label: "ตาแห้ง ระคายเคือง", tag: "eye-care" },
+			]
+		: [
+				{ icon: "🤕", label: "Headache", tag: "pain-fever" },
+				{ icon: "🤒", label: "Fever", tag: "pain-fever" },
+				{ icon: "😷", label: "Sore throat & cough", tag: "cough-cold" },
+				{ icon: "🤧", label: "Allergy, blocked nose", tag: "allergy" },
+				{ icon: "🤢", label: "Diarrhoea, bloating", tag: "digestive" },
+				{ icon: "🔥", label: "Acid reflux", tag: "digestive" },
+				{ icon: "💪", label: "Muscle pain", tag: "muscle-joint" },
+				{ icon: "🩹", label: "Rash, itchy skin", tag: "skin" },
+				{ icon: "🌙", label: "Period pain", tag: "womens-health" },
+				{ icon: "👁️", label: "Dry, irritated eyes", tag: "eye-care" },
+			];
+
+const latest = await all<Article>(db, `SELECT ${ARTICLE_LIST_COLS} FROM articles WHERE published = 1 ORDER BY COALESCE(published_at, created_at) DESC LIMIT 3`);
 
 const needs = ["pain-fever", "cough-cold", "allergy", "digestive", "muscle-joint", "first-aid", "vitamins", "skin", "eye-care", "herbal", "kids", "test-kits"].filter(
 	(k) => TAG_LABELS[k],
@@ -40,41 +70,42 @@ const marketplaces = [
 <Base>
 	<section class="hero">
 		<div class="wrap hero-grid">
-			<div>
+			<div class="hero-copy">
 				<p class="eyebrow"><Icon name="shield" size={18} /> {t(lang, "tagline")}</p>
-				<h1>{lang === "th" ? "ดูแลสุขภาพทุกวัน ด้วยร้านยาที่คุณไว้ใจ" : "Everyday health care from a pharmacy you trust"}</h1>
-				<p class="lead">{t(lang, "heroText")}</p>
-				<div class="hero-cta">
-					<a href="/products" class="btn">{t(lang, "allProducts")} <Icon name="arrow" size={18} /></a>
+				<h1>{lang === "th" ? "ปรึกษาเภสัชกรฟรี ไม่ต้องรอคิว" : "Talk to a pharmacist — free, no queue"}</h1>
+				<p class="lead">
 					{
-						user ? (
-							<span class="badge">{t(lang, "memberActive", { pct })}</span>
-						) : (
-							pct > 0 && (
-								<a href="/account/register" class="btn btn-ghost">
-									{t(lang, "memberBanner", { pct })}
-								</a>
-							)
-						)
+						lang === "th"
+							? "เล่าอาการให้เภสัชกรของเราฟังผ่าน LINE หรือวิดีโอคอล รับคำแนะนำเรื่องยาที่เหมาะสม แล้วสั่งซื้อจัดส่งถึงบ้านหรือรับที่ร้าน"
+							: "Tell our pharmacist your symptoms on LINE or video call, get advice on the right medicine, then have it delivered or pick it up in store."
 					}
+				</p>
+				<div class="hero-cta">
+					{settings.line_url && <a href={settings.line_url} class="btn btn-line btn-lg" target="_blank" rel="noopener"><img src="/social/line-white.svg" alt="" width="20" height="20" /> {lang === "th" ? "ปรึกษาเภสัชกรทาง LINE" : "Chat with a pharmacist on LINE"}</a>}
+					<a href="/teleconsult" class="btn btn-ghost btn-lg"><Icon name="chat" size={18} /> {lang === "th" ? "นัดปรึกษาออนไลน์" : "Book an online consultation"}</a>
 				</div>
 				<ul class="hero-points">
 					<li><Icon name="clock" size={18} /> {lang === "th" ? settings.hours_th : settings.hours_en}</li>
-					<li><Icon name="truck" size={18} /> {lang === "th" ? "จัดส่งทั่วประเทศ หรือรับที่ร้าน" : "Nationwide delivery or in-store pickup"}</li>
-					<li><Icon name="chat" size={18} /> {lang === "th" ? "ปรึกษาเภสัชกรได้ฟรี" : "Free advice from our pharmacists"}</li>
+					<li><Icon name="truck" size={18} /> {lang === "th" ? "จัดส่งถึงบ้าน หรือรับที่ร้าน" : "Home delivery or in-store pickup"}</li>
+					{checkout && pct > 0 && !user && <li><Icon name="tag" size={18} /> <a href="/account/register">{t(lang, "memberBanner", { pct })}</a></li>}
 				</ul>
 			</div>
-			<div class="hero-card" aria-hidden="true">
-				<img src="/logo@2x.png" alt="" width="344" height="270" class="hero-logo" />
-				<div class="hero-cats">
-					{
-						CATEGORIES.map((c) => (
-							<div class="hc" style={`--c: var(--cat-${c.slug}); --cs: var(--cat-${c.slug}-soft)`}>
-								<Icon name={c.icon} size={24} />
-							</div>
-						))
-					}
+			<div class="hero-art">
+				<div class="bubble" aria-live="polite">
+					<span class="q">{lang === "th" ? "คุณมีอาการอย่างไรบ้าง?" : "What symptoms do you have?"}</span>
+					<span class="ticker" aria-hidden="true">
+						<span class="ticker-track">
+							{[...symptoms, symptoms[0]].map((sy) => <span class="sym">{sy.label}</span>)}
+						</span>
+					</span>
 				</div>
+				<img src="/pharmacist.svg" alt={lang === "th" ? "ภาพประกอบเภสัชกร" : "Pharmacist illustration"} width="420" height="460" class="pharmacist" />
+			</div>
+		</div>
+		<div class="wrap symptoms">
+			<span class="small">{lang === "th" ? "เลือกอาการเพื่อปรึกษาเภสัชกร:" : "Pick a symptom to ask our pharmacist:"}</span>
+			<div class="sym-chips">
+				{symptoms.map((sy) => <a class="chip" href={`/teleconsult?symptom=${encodeURIComponent(sy.label)}`}>{sy.icon} {sy.label}</a>)}
 			</div>
 		</div>
 	</section>
@@ -162,6 +193,26 @@ const marketplaces = [
 	</section>
 
 	{
+		latest.length > 0 && (
+			<section class="wrap section">
+				<div class="sec-head">
+					<h2>{t(lang, "articles")}</h2>
+					<a href="/articles">{t(lang, "viewAll")} →</a>
+				</div>
+				<div class="arts">
+					{latest.map((a) => (
+						<a class="art card" href={`/articles/${encodeURIComponent(a.slug)}`}>
+							{aCover(a) ? <img src={aCover(a)!} alt="" loading="lazy" /> : <div class="art-ph" />}
+							<strong>{aTitle(a, lang)}</strong>
+							<span class="small muted">{aExcerpt(a, lang)}</span>
+						</a>
+					))}
+				</div>
+			</section>
+		)
+	}
+
+	{
 		marketplaces.length > 0 && (
 			<section class="wrap section">
 				<div class="sec-head">
@@ -182,46 +233,52 @@ const marketplaces = [
 <style>
 	.hero {
 		background:
-			radial-gradient(1200px 400px at 85% -10%, #d8efe5 0, transparent 60%),
-			linear-gradient(180deg, #f1f8f4 0, var(--paper) 100%);
-		padding: 48px 0 40px;
-		border-bottom: 1px solid var(--line);
+			radial-gradient(900px 420px at 90% 10%, rgba(255, 255, 255, 0.35) 0, transparent 60%),
+			linear-gradient(160deg, #4fcca4 0%, #7fdcbd 55%, #c4f0df 100%);
+		padding: 44px 0 26px;
+		color: #08372b;
+		overflow: hidden;
 	}
 	.hero-grid {
 		display: grid;
-		grid-template-columns: 1.3fr 1fr;
-		gap: 40px;
+		grid-template-columns: 1.2fr 1fr;
+		gap: 32px;
 		align-items: center;
 	}
 	.eyebrow {
 		display: inline-flex;
 		gap: 8px;
 		align-items: center;
-		color: var(--brand-ink);
+		color: #08372b;
 		font-weight: 600;
 		font-size: 0.9rem;
-		background: #fff;
-		border: 1px solid var(--line);
+		background: rgba(255, 255, 255, 0.75);
 		padding: 4px 12px;
 		border-radius: 999px;
 		margin: 0 0 16px;
 	}
+	.hero h1 {
+		font-size: clamp(1.8rem, 4.2vw, 2.8rem);
+	}
 	.lead {
 		font-size: 1.08rem;
-		color: var(--ink-2);
 		max-width: 56ch;
+		color: #0b4536;
 	}
 	.hero-cta {
 		display: flex;
 		gap: 10px;
 		flex-wrap: wrap;
-		align-items: center;
-		margin: 22px 0;
+		margin: 22px 0 18px;
+	}
+	.btn-lg {
+		min-height: 52px;
+		padding: 0 22px;
+		font-size: 1.02rem;
 	}
 	.hero-cta .btn-ghost {
 		background: #fff;
-		white-space: normal;
-		text-align: center;
+		border-color: #fff;
 	}
 	.hero-points {
 		list-style: none;
@@ -230,7 +287,6 @@ const marketplaces = [
 		display: flex;
 		flex-wrap: wrap;
 		gap: 8px 22px;
-		color: var(--ink-2);
 		font-size: 0.92rem;
 	}
 	.hero-points li {
@@ -238,42 +294,120 @@ const marketplaces = [
 		gap: 6px;
 		align-items: center;
 	}
-	.hero-card {
-		background: #fff;
-		border: 1px solid var(--line);
-		border-radius: 22px;
-		padding: 22px;
-		box-shadow: var(--shadow);
+	.hero-points a {
+		color: #08372b;
+		font-weight: 600;
 	}
-	.hero-logo {
-		width: 100%;
-		max-width: 300px;
+	.hero-art {
+		position: relative;
+		display: flex;
+		justify-content: center;
+	}
+	.pharmacist {
+		width: min(100%, 380px);
 		height: auto;
-		margin: 0 auto 18px;
-		border-radius: 12px;
+		filter: drop-shadow(0 18px 30px rgba(8, 55, 43, 0.18));
 	}
-	.hero-cats {
-		display: grid;
-		grid-template-columns: repeat(5, 1fr);
+	.bubble {
+		position: absolute;
+		top: 6%;
+		left: -4%;
+		z-index: 2;
+		background: #fff;
+		border-radius: 22px;
+		padding: 14px 18px 12px;
+		box-shadow: 0 10px 30px rgba(8, 55, 43, 0.18);
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 220px;
+	}
+	.bubble::after {
+		content: "";
+		position: absolute;
+		right: 26px;
+		bottom: -14px;
+		border: 14px solid transparent;
+		border-top-color: #fff;
+		border-bottom: 0;
+	}
+	.bubble .q {
+		font-weight: 700;
+		font-size: 1.05rem;
+		color: #08372b;
+	}
+	.ticker {
+		display: block;
+		height: 1.7em;
+		overflow: hidden;
+		color: var(--brand);
+		font-weight: 600;
+		font-size: 1.15rem;
+	}
+	.ticker-track {
+		display: flex;
+		flex-direction: column;
+		animation: tick 20s steps(1) infinite;
+	}
+	.sym {
+		height: 1.7em;
+		line-height: 1.7em;
+	}
+	@keyframes tick {
+		0% { transform: translateY(0); }
+		10% { transform: translateY(-1.7em); }
+		20% { transform: translateY(-3.4em); }
+		30% { transform: translateY(-5.1em); }
+		40% { transform: translateY(-6.8em); }
+		50% { transform: translateY(-8.5em); }
+		60% { transform: translateY(-10.2em); }
+		70% { transform: translateY(-11.9em); }
+		80% { transform: translateY(-13.6em); }
+		90% { transform: translateY(-15.3em); }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.ticker-track {
+			animation: none;
+		}
+	}
+	.symptoms {
+		margin-top: 18px;
+		display: flex;
 		gap: 10px;
+		align-items: center;
+		flex-wrap: wrap;
 	}
-	.hc {
-		aspect-ratio: 1;
-		border-radius: 16px;
-		display: grid;
-		place-items: center;
-		background: var(--cs);
-		color: var(--c);
+	.sym-chips {
+		display: flex;
+		gap: 8px;
+		overflow-x: auto;
+		padding-bottom: 4px;
+		scrollbar-width: none;
+	}
+	.sym-chips .chip {
+		background: rgba(255, 255, 255, 0.85);
+		border-color: transparent;
 	}
 	@media (max-width: 860px) {
 		.hero-grid {
 			grid-template-columns: 1fr;
 		}
-		.hero-card {
-			display: none;
+		.hero-art {
+			order: -1;
+			max-width: 340px;
+			margin: 0 auto;
+		}
+		.pharmacist {
+			width: 240px;
+		}
+		.bubble {
+			left: -10px;
+			top: 0;
+			min-width: 190px;
+			padding: 10px 14px;
 		}
 		.hero {
-			padding: 32px 0 28px;
+			padding: 26px 0 20px;
 		}
 	}
 	.section {
@@ -372,6 +506,36 @@ const marketplaces = [
 		.consult-actions {
 			justify-content: flex-start;
 		}
+	}
+	.arts {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 14px;
+	}
+	@media (max-width: 760px) {
+		.arts {
+			grid-template-columns: 1fr;
+		}
+	}
+	.art {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		text-decoration: none;
+		color: var(--ink);
+		padding: 0 0 14px !important;
+		overflow: hidden;
+	}
+	.art img,
+	.art-ph {
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		object-fit: cover;
+		background: linear-gradient(135deg, #4fcca4, #c4f0df);
+	}
+	.art strong,
+	.art span {
+		padding: 0 14px;
 	}
 	.mk-row {
 		display: flex;

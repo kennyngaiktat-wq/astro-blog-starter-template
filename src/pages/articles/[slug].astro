@@ -1,0 +1,120 @@
+---
+import Base from "../../layouts/Base.astro";
+import { all, first } from "../../lib/db";
+import { ARTICLE_LIST_COLS, aBody, aCover, aDate, aExcerpt, aTitle, type Article } from "../../lib/articles";
+import { readingMinutes, renderMarkdown } from "../../lib/markdown";
+import { isAdmin } from "../../lib/auth";
+import { t } from "../../lib/i18n";
+
+const { lang, env, settings } = Astro.locals;
+const slug = decodeURIComponent(Astro.params.slug ?? "");
+const a = await first<Article>(env.DB, "SELECT * FROM articles WHERE slug = ?", slug);
+const adminPreview = a && !a.published && (await isAdmin(env.DB, Astro.cookies));
+if (!a || (!a.published && !adminPreview)) return Astro.rewrite("/404");
+const body = aBody(a, lang);
+const html = renderMarkdown(body);
+const more = await all<Article>(
+	env.DB,
+	`SELECT ${ARTICLE_LIST_COLS} FROM articles WHERE published = 1 AND id != ? ORDER BY COALESCE(published_at, created_at) DESC LIMIT 3`,
+	a.id,
+);
+const cover = aCover(a);
+---
+
+<Base title={aTitle(a, lang)} description={aExcerpt(a, lang) || aTitle(a, lang)}>
+	<article class="wrap art">
+		{adminPreview && <div class="alert alert-warn">Draft preview — not published yet. <a href={`/admin/articles/${a.id}`}>Edit</a></div>}
+		<nav class="small crumbs"><a href="/articles">{t(lang, "articles")}</a></nav>
+		<h1>{aTitle(a, lang)}</h1>
+		<p class="small muted">{aDate(a, lang)} · {readingMinutes(body)} {lang === "th" ? "นาทีในการอ่าน" : "min read"}</p>
+		{cover && <img class="cover" src={cover} alt="" />}
+		<div class="prose" set:html={html} />
+		<aside class="card cta">
+			<img src="/pharmacist.svg" alt="" width="90" height="98" />
+			<div>
+				<strong>{lang === "th" ? "มีคำถามเรื่องยาหรืออาการ?" : "Questions about a medicine or symptom?"}</strong>
+				<p class="small muted">{lang === "th" ? "ปรึกษาเภสัชกรของเราได้ฟรี" : "Ask our pharmacists — it's free."}</p>
+				<div class="btns">
+					{settings.line_url && <a class="btn btn-line btn-sm" href={settings.line_url} target="_blank" rel="noopener"><img src="/social/line-white.svg" alt="" width="16" height="16" /> LINE</a>}
+					<a class="btn btn-ghost btn-sm" href="/teleconsult">{t(lang, "teleconsult")}</a>
+				</div>
+			</div>
+		</aside>
+		{
+			more.length > 0 && (
+				<section class="more">
+					<h2 class="h3">{lang === "th" ? "บทความอื่นๆ" : "More articles"}</h2>
+					<ul>
+						{more.map((m) => (
+							<li>
+								<a href={`/articles/${encodeURIComponent(m.slug)}`}>{aTitle(m, lang)}</a>
+							</li>
+						))}
+					</ul>
+				</section>
+			)
+		}
+	</article>
+</Base>
+
+<style>
+	.art {
+		max-width: 760px;
+		padding-top: 18px;
+	}
+	.crumbs a {
+		color: var(--muted);
+	}
+	.art h1 {
+		margin-top: 8px;
+	}
+	.cover {
+		width: 100%;
+		border-radius: var(--radius);
+		margin: 14px 0 24px;
+		max-height: 420px;
+		object-fit: cover;
+	}
+	.prose {
+		font-size: 1.05rem;
+		line-height: 1.8;
+	}
+	.prose :global(h2) {
+		margin-top: 1.6em;
+		font-size: 1.35rem;
+	}
+	.prose :global(h3),
+	.prose :global(h4) {
+		margin-top: 1.4em;
+	}
+	.prose :global(img) {
+		border-radius: 12px;
+		margin: 14px 0;
+	}
+	.prose :global(blockquote) {
+		margin: 16px 0;
+		padding: 10px 16px;
+		border-left: 4px solid var(--mint);
+		background: var(--brand-soft);
+		border-radius: 0 10px 10px 0;
+	}
+	.cta {
+		display: flex;
+		gap: 16px;
+		align-items: center;
+		margin: 32px 0;
+		background: var(--brand-soft);
+		border-color: #bfe8d9;
+	}
+	.cta img {
+		flex: none;
+	}
+	.btns {
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
+	}
+	.more ul {
+		padding-left: 20px;
+	}
+</style>

@@ -1,0 +1,129 @@
+---
+import Admin from "../../layouts/Admin.astro";
+import { all, first, run } from "../../lib/db";
+
+const { env } = Astro.locals;
+const STATUSES = ["new", "contacted", "done", "cancelled"];
+let msg = "";
+if (Astro.request.method === "POST") {
+	const fd = await Astro.request.formData();
+	const id = Number(fd.get("id"));
+	if (fd.get("op") === "delete") {
+		await run(env.DB, "DELETE FROM consult_requests WHERE id = ?", id);
+		msg = "Request deleted.";
+	} else {
+		const status = String(fd.get("status"));
+		await run(
+			env.DB,
+			"UPDATE consult_requests SET status = ?, admin_notes = ?, updated_at = datetime('now') WHERE id = ?",
+			STATUSES.includes(status) ? status : "new",
+			String(fd.get("admin_notes") ?? "").slice(0, 2000) || null,
+			id,
+		);
+		msg = "Saved.";
+	}
+}
+const status = STATUSES.includes(Astro.url.searchParams.get("status") ?? "") ? Astro.url.searchParams.get("status")! : "";
+const rows = await all<Record<string, any>>(
+	env.DB,
+	`SELECT * FROM consult_requests ${status ? "WHERE status = ?" : ""} ORDER BY CASE status WHEN 'new' THEN 0 WHEN 'contacted' THEN 1 ELSE 2 END, id DESC LIMIT 200`,
+	...(status ? [status] : []),
+);
+const counts = await all<{ status: string; n: number }>(env.DB, "SELECT status, COUNT(*) n FROM consult_requests GROUP BY status");
+const n = (s: string) => counts.find((c) => c.status === s)?.n ?? 0;
+const total = (await first<{ n: number }>(env.DB, "SELECT COUNT(*) n FROM consult_requests"))?.n ?? 0;
+const channel: Record<string, string> = { line: "LINE", phone: "Phone", video: "Video call" };
+---
+
+<Admin title="Consultations">
+	{msg && <div class="alert alert-ok">{msg}</div>}
+	<p class="small muted">Requests from the “Online consultation” page. This is health information — only share it with the pharmacist handling the case.</p>
+	<div class="tabs">
+		<a class:list={["chip", { on: !status }]} href="/admin/consults">All ({total})</a>
+		{STATUSES.map((s) => <a class:list={["chip", { on: status === s }]} href={`/admin/consults?status=${s}`}>{s} ({n(s)})</a>)}
+	</div>
+	{rows.length === 0 && <p class="muted">No requests yet.</p>}
+	<div class="list">
+		{
+			rows.map((r) => (
+				<form method="post" class:list={["card", "req", r.status]}>
+					<input type="hidden" name="id" value={r.id} />
+					<div class="top">
+						<div>
+							<strong>{r.name}</strong> · <a href={`tel:${String(r.phone).replace(/[^0-9+]/g, "")}`}>{r.phone}</a>
+							{r.line_id && <> · LINE: <strong>{r.line_id}</strong></>}
+							<div class="tiny muted">#{r.id} · {r.created_at} · prefers {channel[r.channel] ?? r.channel}{r.preferred_time && <> · {r.preferred_time}</>}</div>
+						</div>
+						<span class="badge">{r.status}</span>
+					</div>
+					<p class="sym">{r.symptoms}</p>
+					<div class="tiny meta">
+						{r.age && <span>Age: {r.age}</span>}
+						{r.allergies && <span>Allergies: {r.allergies}</span>}
+						{r.current_meds && <span>Current meds/conditions: {r.current_meds}</span>}
+					</div>
+					<div class="row">
+						<select name="status">{STATUSES.map((s) => <option value={s} selected={r.status === s}>{s}</option>)}</select>
+						<input name="admin_notes" value={r.admin_notes ?? ""} placeholder="Pharmacist notes" />
+						<button class="btn btn-sm" name="op" value="save">Save</button>
+						<button class="btn btn-sm btn-ghost" name="op" value="delete" onclick="return confirm('Delete this request?')">Delete</button>
+					</div>
+				</form>
+			))
+		}
+	</div>
+</Admin>
+
+<style>
+	.tabs {
+		display: flex;
+		gap: 8px;
+		margin-bottom: 14px;
+		flex-wrap: wrap;
+	}
+	.list {
+		display: grid;
+		gap: 10px;
+	}
+	.req {
+		margin: 0 !important;
+	}
+	.req.new {
+		border-left: 5px solid var(--accent);
+	}
+	.req.contacted {
+		border-left: 5px solid #e3b341;
+	}
+	.top {
+		display: flex;
+		justify-content: space-between;
+		gap: 10px;
+	}
+	.sym {
+		white-space: pre-line;
+		margin: 10px 0;
+	}
+	.meta {
+		display: flex;
+		gap: 14px;
+		flex-wrap: wrap;
+		color: var(--ink-2);
+	}
+	.row {
+		display: flex;
+		gap: 8px;
+		margin-top: 10px;
+		flex-wrap: wrap;
+	}
+	.row select {
+		width: auto;
+		min-height: 34px;
+		padding: 4px 8px;
+	}
+	.row input {
+		flex: 1;
+		min-width: 200px;
+		min-height: 34px;
+		padding: 4px 8px;
+	}
+</style>

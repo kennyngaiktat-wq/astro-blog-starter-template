@@ -1,0 +1,137 @@
+---
+// The call-to-action buttons for a product, shared by product cards and the product page.
+import Icon from "./Icon.astro";
+import { buyInfo, isAlwaysAvailable, type Product } from "../lib/catalog";
+import { t } from "../lib/i18n";
+
+interface Props {
+	product: Product;
+	size?: "sm" | "lg";
+}
+const { product: p, size = "sm" } = Astro.props;
+const { lang, settings, checkout } = Astro.locals;
+const info = buyInfo(p, { checkout });
+const line = settings.line_url;
+const sm = size === "sm";
+const btn = (extra = "") => ["btn", sm && "btn-sm", extra].filter(Boolean).join(" ");
+const always = isAlwaysAvailable(p);
+---
+
+<div class:list={["buy", { lg: !sm }]}>
+	{
+		info.action === "consult" && (
+			<>
+				{line && (
+					<a class={btn("btn-line")} href={line} target="_blank" rel="noopener">
+						<img src="/social/line-white.svg" alt="" width="16" height="16" />
+						<span>{t(lang, "consultPharmacist")}</span>
+					</a>
+				)}
+				{!sm && (
+					<a class={btn("btn-ghost")} href="/teleconsult">
+						<Icon name="chat" size={18} /> {t(lang, "teleconsult")}
+					</a>
+				)}
+			</>
+		)
+	}
+	{
+		info.action === "cart" && (
+			<>
+				{!sm && (
+					<label class="qty">
+						<span class="sr-only">{t(lang, "qty")}</span>
+						<input id="qty" type="number" min="1" max="99" value="1" inputmode="numeric" />
+					</label>
+				)}
+				<button class={btn()} data-add-sku={p.sku} data-qty-from={sm ? undefined : "#qty"} data-added-label={t(lang, "added")} aria-label={`${t(lang, "addToCart")}: ${p.name}`}>
+					<Icon name="cart" size={sm ? 16 : 18} />
+					<span class="lbl">{t(lang, "addToCart")}</span>
+				</button>
+				{always && line && (
+					<a class={btn("btn-ghost")} href={line} target="_blank" rel="noopener" title={t(lang, "consultLine")}>
+						<img src="/social/line.svg" alt="LINE" width="16" height="16" />
+						{!sm && <span>{t(lang, "consultLine")}</span>}
+					</a>
+				)}
+			</>
+		)
+	}
+	{
+		info.action === "marketplace" && (
+			<>
+				{info.shopee && (
+					<a class={btn("mk-btn mk-shopee")} href={info.shopee} target="_blank" rel="noopener" aria-label={`Shopee: ${p.name}`}>
+						<img src="/social/shopee.svg" alt="" width="18" height="18" />
+						<span>Shopee</span>
+					</a>
+				)}
+				{info.lazada && (
+					<a class={btn("mk-btn mk-lazada")} href={info.lazada} target="_blank" rel="noopener" aria-label={`Lazada: ${p.name}`}>
+						<img src="/social/lazada.svg" alt="Lazada" height="16" class="lzd" />
+					</a>
+				)}
+				{!sm && line && (
+					<a class={btn("btn-line")} href={line} target="_blank" rel="noopener">
+						<img src="/social/line-white.svg" alt="" width="16" height="16" /> {t(lang, "orderOnLine")}
+					</a>
+				)}
+			</>
+		)
+	}
+	{
+		info.action === "line" && line && (
+			<a class={btn("btn-line")} href={line} target="_blank" rel="noopener">
+				<img src="/social/line-white.svg" alt="" width="16" height="16" />
+				<span>{info.outOfStock ? t(lang, "askAvailability") : t(lang, "orderOnLine")}</span>
+			</a>
+		)
+	}
+	{
+		!sm && (info.action === "line" || info.action === "marketplace") && (
+			<a class={btn("btn-ghost")} href={`tel:${settings.phone.replace(/[^0-9+]/g, "")}`}>
+				<Icon name="phone" size={18} /> {settings.phone}
+			</a>
+		)
+	}
+</div>
+
+<style>
+	.buy {
+		display: flex;
+		gap: 6px;
+		flex-wrap: wrap;
+		align-items: center;
+	}
+	.buy.lg {
+		gap: 10px;
+	}
+	.qty input {
+		width: 80px;
+		text-align: center;
+	}
+	.mk-btn {
+		background: #fff;
+		border: 1px solid var(--line);
+		color: var(--ink);
+	}
+	.mk-btn:hover {
+		background: #f7f7f7;
+	}
+	.mk-shopee span {
+		color: #ee4d2d;
+		font-weight: 700;
+	}
+	.lzd {
+		height: 16px;
+		width: auto;
+	}
+	.buy:not(.lg) .btn {
+		padding: 0 10px;
+	}
+	@media (max-width: 480px) {
+		.buy:not(.lg) .lbl {
+			display: none;
+		}
+	}
+</style>

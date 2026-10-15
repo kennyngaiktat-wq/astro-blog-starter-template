@@ -1,0 +1,113 @@
+---
+import Base from "../../layouts/Base.astro";
+import { all } from "../../lib/db";
+import { ARTICLE_LIST_COLS, aCover, aDate, aExcerpt, aTitle, type Article } from "../../lib/articles";
+import { t } from "../../lib/i18n";
+
+const { lang, env } = Astro.locals;
+const tag = (Astro.url.searchParams.get("tag") ?? "").trim();
+const articles = await all<Article>(
+	env.DB,
+	`SELECT ${ARTICLE_LIST_COLS} FROM articles WHERE published = 1 ${tag ? "AND (',' || tags || ',') LIKE ?" : ""}
+	 ORDER BY COALESCE(published_at, created_at) DESC LIMIT 60`,
+	...(tag ? [`%,${tag},%`] : []),
+);
+const [lead, ...rest] = articles;
+---
+
+<Base title={t(lang, "articles")} description={lang === "th" ? "บทความสุขภาพและการใช้ยาอย่างถูกต้อง จากเภสัชกร" : "Health and medicine tips from our pharmacists"}>
+	<div class="wrap">
+		<div class="page-head">
+			<h1>{t(lang, "articles")}</h1>
+			<p class="muted">{lang === "th" ? "ความรู้เรื่องสุขภาพและการใช้ยาอย่างถูกต้อง จากเภสัชกรของเรา" : "Health and medicine tips from our pharmacists"}</p>
+		</div>
+		{articles.length === 0 && <p class="muted">{lang === "th" ? "ยังไม่มีบทความ" : "No articles yet."}</p>}
+		{
+			lead && (
+				<a class="lead card" href={`/articles/${encodeURIComponent(lead.slug)}`}>
+					{aCover(lead) ? <img src={aCover(lead)!} alt="" /> : <div class="ph" />}
+					<div class="lead-body">
+						<span class="tiny muted">{aDate(lead, lang)}</span>
+						<h2>{aTitle(lead, lang)}</h2>
+						<p class="muted">{aExcerpt(lead, lang)}</p>
+					</div>
+				</a>
+			)
+		}
+		<div class="grid">
+			{
+				rest.map((a) => (
+					<a class="item card" href={`/articles/${encodeURIComponent(a.slug)}`}>
+						{aCover(a) ? <img src={aCover(a)!} alt="" loading="lazy" /> : <div class="ph" />}
+						<span class="tiny muted">{aDate(a, lang)}</span>
+						<h3>{aTitle(a, lang)}</h3>
+						<p class="small muted">{aExcerpt(a, lang)}</p>
+					</a>
+				))
+			}
+		</div>
+	</div>
+</Base>
+
+<style>
+	.lead {
+		display: grid;
+		grid-template-columns: 1.2fr 1fr;
+		gap: 20px;
+		padding: 0 !important;
+		overflow: hidden;
+		text-decoration: none;
+		color: var(--ink);
+		margin-bottom: 20px;
+	}
+	.lead img,
+	.lead .ph {
+		width: 100%;
+		height: 100%;
+		min-height: 240px;
+		object-fit: cover;
+	}
+	.lead-body {
+		padding: 22px 22px 22px 0;
+	}
+	@media (max-width: 760px) {
+		.lead {
+			grid-template-columns: 1fr;
+		}
+		.lead-body {
+			padding: 0 18px 18px;
+		}
+	}
+	.grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+		gap: 16px;
+	}
+	.item {
+		text-decoration: none;
+		color: var(--ink);
+		padding: 0 0 16px !important;
+		overflow: hidden;
+	}
+	.item img,
+	.item .ph {
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		object-fit: cover;
+		margin-bottom: 12px;
+	}
+	.item > :not(img):not(.ph) {
+		margin-left: 16px;
+		margin-right: 16px;
+	}
+	.item h3 {
+		margin-top: 4px;
+	}
+	.ph {
+		background: linear-gradient(135deg, #4fcca4, #c4f0df);
+	}
+	.lead:hover,
+	.item:hover {
+		box-shadow: var(--shadow);
+	}
+</style>

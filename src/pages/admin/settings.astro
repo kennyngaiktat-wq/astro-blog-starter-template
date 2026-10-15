@@ -1,6 +1,6 @@
 ---
 import Admin from "../../layouts/Admin.astro";
-import { DEFAULT_SETTINGS, SETTING_KEYS, clearSettingsCache, loadSettings, type Settings } from "../../lib/settings";
+import { DEFAULT_SETTINGS, SETTING_KEYS, checkoutEnabled, clearSettingsCache, loadSettings, type Settings } from "../../lib/settings";
 import { batchChunks } from "../../lib/db";
 import { COUNTRIES, loadZones, type Zone } from "../../lib/shipping";
 
@@ -49,6 +49,7 @@ const groups: { title: string; fields: { key: keyof Settings; label: string; hin
 			{ key: "lazada_url", label: "Lazada shop link" },
 			{ key: "facebook_url", label: "Facebook page link" },
 			{ key: "wongnai_url", label: "Wongnai page link" },
+			{ key: "tiktok_url", label: "TikTok link" },
 		],
 	},
 	{
@@ -88,6 +89,18 @@ const groups: { title: string; fields: { key: keyof Settings; label: string; hin
 <Admin title="Settings">
 	{msg && <div class="alert alert-ok">{msg}</div>}
 	<form method="post">
+		<section class="card">
+			<h2 class="h3">Online checkout</h2>
+			<div class="field" style="max-width:520px">
+				<label for="checkout_mode">How customers buy</label>
+				<select id="checkout_mode" name="checkout_mode">
+					<option value="auto" selected={s.checkout_mode === "auto"}>Automatic — cart &amp; payment when Opn keys are added, otherwise Shopee/Lazada/LINE</option>
+					<option value="on" selected={s.checkout_mode === "on"}>On — cart, checkout and member discount</option>
+					<option value="off" selected={s.checkout_mode === "off"}>Off — show Shopee / Lazada / LINE buttons instead of the cart</option>
+				</select>
+			</div>
+			<p class="small muted">Currently: <strong>{checkoutEnabled(s, env) ? "cart & payment ON" : "OFF (Shopee / Lazada / LINE)"}</strong>. When off, the cart, member discount promotions and sign-up links are hidden and online consultation becomes the main call to action. Set each product's own Shopee / Lazada link on its edit page or in the CSV (<code>shopee_url</code>, <code>lazada_url</code>). Controlled medicines always show “Consult pharmacist”.</p>
+		</section>
 		{
 			groups.map((g) => (
 				<section class="card">

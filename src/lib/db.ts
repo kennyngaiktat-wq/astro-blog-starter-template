@@ -33,6 +33,8 @@ const ADDED_COLUMNS: [table: string, column: string, definition: string][] = [
 	["customers", "country", "TEXT NOT NULL DEFAULT 'TH'"],
 	["orders", "country", "TEXT NOT NULL DEFAULT 'TH'"],
 	["orders", "shipping_zone", "TEXT"],
+	["products", "shopee_url", "TEXT"],
+	["products", "lazada_url", "TEXT"],
 ];
 
 async function addMissingColumns(db: D1Database) {

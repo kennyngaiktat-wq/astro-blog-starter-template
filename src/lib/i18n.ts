@@ -21,6 +21,17 @@ const dict = {
 		th: "สินค้านี้มีจำหน่ายที่ร้านหลังจากได้รับคำแนะนำจากเภสัชกร ไม่สามารถสั่งซื้อออนไลน์ได้ กรุณาติดต่อเราทาง LINE หรือโทรศัพท์",
 		en: "Available in store after a consultation with our pharmacist. It can't be ordered online — please contact us on LINE or by phone.",
 	},
+	teleconsult: { th: "ปรึกษาเภสัชกรออนไลน์", en: "Online consultation" },
+	askPharmacist: { th: "สอบถามเภสัชกร", en: "Ask our pharmacist" },
+	articles: { th: "บทความสุขภาพ", en: "Health articles" },
+	marketplaceNote: {
+		th: "สั่งซื้อสินค้านี้ได้ที่ร้านของเราบน Shopee หรือ Lazada หรือทักหาเราทาง LINE",
+		en: "Order this item from our Shopee or Lazada store, or message us on LINE.",
+	},
+	lineOrderNote: {
+		th: "สั่งซื้อหรือสอบถามสินค้านี้ได้ทาง LINE หรือโทรหาเรา",
+		en: "Order or ask about this item on LINE, or give us a call.",
+	},
 	available: { th: "พร้อมจำหน่าย", en: "Available" },
 	priceOnRequest: { th: "สอบถามราคา", en: "Price on request" },
 	orderOnLine: { th: "สั่งทาง LINE", en: "Order on LINE" },

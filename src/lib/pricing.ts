@@ -1,5 +1,5 @@
 import { all } from "./db";
-import { canBuyOnline, type Product } from "./catalog";
+import { canBuyOnline, isAlwaysAvailable, type Product } from "./catalog";
 import { num, type Settings } from "./settings";
 import { DEFAULT_ITEM_WEIGHT_G, PACKAGING_G, canShipAbroad, intlRate, loadZones, zoneFor } from "./shipping";
 
@@ -76,12 +76,13 @@ export async function quoteCart(
 
 	for (const c of cart) {
 		const p = bySku.get(c.sku);
-		if (!p || !canBuyOnline(p) || p.stock <= 0 || p.price_satang <= 0) {
+		const always = p ? isAlwaysAvailable(p) : false;
+		if (!p || !canBuyOnline(p) || (!always && p.stock <= 0)) {
 			removed.push(c.sku);
 			continue;
 		}
 		let qty = c.qty;
-		if (qty > p.stock) {
+		if (!always && qty > p.stock) {
 			qty = p.stock;
 			adjusted.push(c.sku);
 		}

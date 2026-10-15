@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 460" role="img" aria-labelledby="t">
+  <title id="t">Pharmacist illustration</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d9f5ea"/>
+      <stop offset="1" stop-color="#b9ecd9"/>
+    </linearGradient>
+    <clipPath id="circle"><circle cx="210" cy="250" r="200"/></clipPath>
+  </defs>
+  <circle cx="210" cy="250" r="200" fill="url(#bg)"/>
+  <g clip-path="url(#circle)">
+    <!-- back hair -->
+    <path d="M140 176c0-62 32-100 72-100s70 38 70 100c0 18-2 30-6 40H146c-4-10-6-22-6-40z" fill="#1f1714"/>
+    <!-- coat / body -->
+    <path d="M70 470c0-92 38-150 102-168l38 20 38-20c64 18 102 76 102 168z" fill="#ffffff"/>
+    <path d="M70 470c0-92 38-150 102-168l38 20 38-20c64 18 102 76 102 168z" fill="none" stroke="#d7e4df" stroke-width="2"/>
+    <!-- shirt -->
+    <path d="M176 300l34 54 34-54-34 22z" fill="#4fcca4"/>
+    <!-- lapels -->
+    <path d="M172 302l38 52-26 6-30-50z" fill="#f1f6f4"/>
+    <path d="M248 302l-38 52 26 6 30-50z" fill="#f1f6f4"/>
+    <!-- coat opening line -->
+    <path d="M210 356v114" stroke="#d7e4df" stroke-width="3"/>
+    <!-- pocket + pen + badge -->
+    <rect x="252" y="388" width="46" height="34" rx="5" fill="#f1f6f4" stroke="#d7e4df" stroke-width="2"/>
+    <rect x="262" y="372" width="5" height="24" rx="2" fill="#0f8b67"/>
+    <rect x="272" y="376" width="5" height="20" rx="2" fill="#2f6db5"/>
+    <rect x="124" y="380" width="58" height="26" rx="6" fill="#0f8b67"/>
+    <rect x="132" y="389" width="30" height="4" rx="2" fill="#d9f5ea"/>
+    <rect x="132" y="396" width="20" height="3" rx="1.5" fill="#9ee3c8"/>
+    <!-- neck -->
+    <path d="M190 262h40v42c0 10-9 18-20 18s-20-8-20-18z" fill="#d9a07c"/>
+    <path d="M190 280c12 8 28 8 40 0v-6h-40z" fill="#c98f6b" opacity=".6"/>
+    <!-- face -->
+    <ellipse cx="210" cy="196" rx="62" ry="72" fill="#e8b896"/>
+    <!-- ears + earrings -->
+    <ellipse cx="149" cy="204" rx="10" ry="15" fill="#e2ae8a"/>
+    <ellipse cx="271" cy="204" rx="10" ry="15" fill="#e2ae8a"/>
+    <circle cx="150" cy="222" r="3.5" fill="#4fcca4"/>
+    <circle cx="270" cy="222" r="3.5" fill="#4fcca4"/>
+    <!-- fringe / front hair -->
+    <path d="M146 178c-4-52 28-86 68-86 38 0 68 30 66 80-6-14-14-26-26-34-30 4-58 18-78 44-10 2-20 0-30-4z" fill="#1f1714"/>
+    <!-- bun -->
+    <circle cx="212" cy="84" r="26" fill="#1f1714"/>
+    <path d="M192 100c12 7 28 7 40 0" stroke="#4a3a33" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <!-- brows -->
+    <path d="M172 178c8-6 18-7 26-4" stroke="#2a1d18" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M222 174c8-3 18-2 26 4" stroke="#2a1d18" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <!-- eyes (smiling) -->
+    <path d="M174 198c6-7 18-7 24 0" stroke="#2a1d18" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+    <path d="M222 198c6-7 18-7 24 0" stroke="#2a1d18" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+    <!-- glasses -->
+    <rect x="164" y="184" width="42" height="30" rx="12" fill="none" stroke="#0f8b67" stroke-width="3"/>
+    <rect x="214" y="184" width="42" height="30" rx="12" fill="none" stroke="#0f8b67" stroke-width="3"/>
+    <path d="M206 196h8" stroke="#0f8b67" stroke-width="3"/>
+    <!-- nose -->
+    <path d="M210 208c-3 10-4 16 2 18" stroke="#c98f6b" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <!-- cheeks -->
+    <ellipse cx="176" cy="226" rx="11" ry="7" fill="#f09a8a" opacity=".45"/>
+    <ellipse cx="244" cy="226" rx="11" ry="7" fill="#f09a8a" opacity=".45"/>
+    <!-- smile -->
+    <path d="M190 238c10 12 30 12 40 0" stroke="#b5574a" stroke-width="4" fill="#fff" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- hand holding medicine box -->
+    <g transform="rotate(-8 300 330)">
+      <rect x="278" y="300" width="70" height="52" rx="6" fill="#ffffff" stroke="#0f8b67" stroke-width="3"/>
+      <rect x="278" y="300" width="70" height="14" rx="6" fill="#4fcca4"/>
+      <path d="M313 322v20M303 332h20" stroke="#0f8b67" stroke-width="5" stroke-linecap="round"/>
+    </g>
+    <path d="M262 368c8-20 26-30 44-26 10 2 12 12 4 18l-22 16c-8 6-22 4-26-8z" fill="#e8b896"/>
+  </g>
+</svg>

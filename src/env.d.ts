@@ -18,6 +18,7 @@ declare namespace App {
 		lang: "th" | "en";
 		user: import("./lib/auth").SessionUser | null;
 		admin: boolean;
+		checkout: boolean;
 		settings: import("./lib/settings").Settings;
 		env: AppEnv;
 	}

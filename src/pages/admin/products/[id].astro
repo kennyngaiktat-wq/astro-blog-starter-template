@@ -39,7 +39,12 @@ if (Astro.request.method === "POST") {
 		manufacturer: str(fd, "manufacturer", 200),
 		weight_g: Math.floor(Number(str(fd, "weight_g", 8))) || 0,
 		intl_ok: fd.get("intl_ok") === "yes" ? 1 : fd.get("intl_ok") === "no" ? 0 : null,
+		shopee_url: str(fd, "shopee_url", 500),
+		lazada_url: str(fd, "lazada_url", 500),
 	};
+	for (const k of ["shopee_url", "lazada_url"] as const) {
+		if (v[k] && !/^https?:\/\//.test(v[k])) v[k] = `https://${v[k]}`;
+	}
 
 	if (!error) {
 		if (!v.sku || !v.name) error = "SKU and name are required.";
@@ -55,16 +60,16 @@ if (Astro.request.method === "POST") {
 		if (isNew) {
 			const row = await db
 				.prepare(
-					`INSERT INTO products (sku, barcode, name, name_en, unit, price_satang, stock, category, consult_required, active, featured, tags, description, description_en, manufacturer, weight_g, intl_ok)
-					 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
+					`INSERT INTO products (sku, barcode, name, name_en, unit, price_satang, stock, category, consult_required, active, featured, tags, description, description_en, manufacturer, weight_g, intl_ok, shopee_url, lazada_url)
+					 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id`,
 				)
-				.bind(v.sku, v.barcode || null, v.name, v.name_en || null, v.unit || null, v.price_satang, stock, v.category, v.consult_required, v.active, v.featured, v.tags, v.description || null, v.description_en || null, v.manufacturer || null, v.weight_g || null, v.intl_ok)
+				.bind(v.sku, v.barcode || null, v.name, v.name_en || null, v.unit || null, v.price_satang, stock, v.category, v.consult_required, v.active, v.featured, v.tags, v.description || null, v.description_en || null, v.manufacturer || null, v.weight_g || null, v.intl_ok, v.shopee_url || null, v.lazada_url || null)
 				.first<{ id: number }>();
 			return Astro.redirect(`/admin/products/${row!.id}?saved=1`);
 		}
 		await run(
 			db,
-			`UPDATE products SET sku=?, barcode=?, name=?, name_en=?, unit=?, price_satang=?, stock=?, category=?, consult_required=?, active=?, featured=?, tags=?, description=?, description_en=?, manufacturer=?, weight_g=?, intl_ok=?, updated_at=datetime('now') WHERE id=?`,
+			`UPDATE products SET sku=?, barcode=?, name=?, name_en=?, unit=?, price_satang=?, stock=?, category=?, consult_required=?, active=?, featured=?, tags=?, description=?, description_en=?, manufacturer=?, weight_g=?, intl_ok=?, shopee_url=?, lazada_url=?, updated_at=datetime('now') WHERE id=?`,
 			v.sku,
 			v.barcode || null,
 			v.name,
@@ -82,6 +87,8 @@ if (Astro.request.method === "POST") {
 			v.manufacturer || null,
 			v.weight_g || null,
 			v.intl_ok,
+			v.shopee_url || null,
+			v.lazada_url || null,
 			p.id,
 		);
 		return Astro.redirect(`/admin/products/${p.id}?saved=1`);
@@ -119,6 +126,11 @@ const tags = await allTags(db, true);
 			<div class="field"><label for="manufacturer">Manufacturer / brand</label><input id="manufacturer" name="manufacturer" value={p.manufacturer ?? ""} /></div>
 			<div class="field"><label for="description">Description (Thai)</label><textarea id="description" name="description" rows="4">{p.description ?? ""}</textarea></div>
 			<div class="field"><label for="description_en">Description (English)</label><textarea id="description_en" name="description_en" rows="4">{p.description_en ?? ""}</textarea></div>
+			<div class="grid-2">
+				<div class="field"><label for="shopee_url"><img src="/social/shopee.svg" alt="" width="14" height="14" /> Shopee product link</label><input id="shopee_url" name="shopee_url" value={p.shopee_url ?? ""} placeholder="https://shopee.co.th/…" /></div>
+				<div class="field"><label for="lazada_url">Lazada product link</label><input id="lazada_url" name="lazada_url" value={p.lazada_url ?? ""} placeholder="https://www.lazada.co.th/products/…" /></div>
+			</div>
+			<p class="tiny muted" style="margin-top:-6px">Shown as Shopee / Lazada buttons when online checkout is off. Controlled medicines show “Consult pharmacist” instead.</p>
 			<div class="grid-2">
 				<div class="field"><label for="weight_g">Shipping weight (grams)</label><input id="weight_g" name="weight_g" inputmode="numeric" value={p.weight_g ?? ""} placeholder="300 if blank" /></div>
 				<div class="field">

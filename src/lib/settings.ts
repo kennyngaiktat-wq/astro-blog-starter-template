@@ -27,6 +27,8 @@ export interface Settings {
 	intl_zones: string;
 	refund_policy_th: string;
 	refund_policy_en: string;
+	checkout_mode: string;
+	tiktok_url: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -58,6 +60,8 @@ export const DEFAULT_SETTINGS: Settings = {
 	intl_zones: "",
 	refund_policy_th: "",
 	refund_policy_en: "",
+	checkout_mode: "auto",
+	tiktok_url: "",
 };
 
 export const SETTING_KEYS = Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[];
@@ -85,4 +89,11 @@ export function clearSettingsCache() {
 export function num(v: string, fallback = 0): number {
 	const n = Number(v);
 	return Number.isFinite(n) ? n : fallback;
+}
+
+/** Online checkout is on when set to "on", or "auto" with Opn keys configured. */
+export function checkoutEnabled(settings: Settings, env: { OPN_PUBLIC_KEY?: string; OPN_SECRET_KEY?: string }): boolean {
+	if (settings.checkout_mode === "on") return true;
+	if (settings.checkout_mode === "off") return false;
+	return !!(env.OPN_PUBLIC_KEY && env.OPN_SECRET_KEY);
 }

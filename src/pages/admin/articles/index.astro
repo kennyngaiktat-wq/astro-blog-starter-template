@@ -1,0 +1,34 @@
+---
+import Admin from "../../../layouts/Admin.astro";
+import { all } from "../../../lib/db";
+import { ARTICLE_LIST_COLS, type Article } from "../../../lib/articles";
+
+const { env } = Astro.locals;
+const rows = await all<Article>(env.DB, `SELECT ${ARTICLE_LIST_COLS} FROM articles ORDER BY COALESCE(published_at, created_at) DESC`);
+---
+
+<Admin title="Articles">
+	<p><a class="btn btn-sm" href="/admin/articles/new">+ New article</a> <a class="small" href="/articles" target="_blank">View articles page ↗</a></p>
+	<div class="card" style="padding:0">
+		<table class="table">
+			<thead><tr><th></th><th>Title</th><th>Status</th><th>Date</th><th></th></tr></thead>
+			<tbody>
+				{
+					rows.map((a) => (
+						<tr>
+							<td style="width:72px">{a.cover_media_id ? <img src={`/img/m/${a.cover_media_id}`} alt="" style="width:64px;height:40px;object-fit:cover;border-radius:6px" /> : null}</td>
+							<td>
+								<a href={`/admin/articles/${a.id}`}><strong>{a.title_th}</strong></a>
+								{a.title_en && <div class="tiny muted">{a.title_en}</div>}
+							</td>
+							<td>{a.published ? <span class="badge">Published</span> : <span class="badge badge-out">Draft</span>}</td>
+							<td class="small nowrap">{(a.published_at || a.created_at).slice(0, 10)}</td>
+							<td><a class="small" href={`/articles/${encodeURIComponent(a.slug)}`} target="_blank">View ↗</a></td>
+						</tr>
+					))
+				}
+			</tbody>
+		</table>
+		{rows.length === 0 && <p class="muted" style="padding:16px">No articles yet — write your first one.</p>}
+	</div>
+</Admin>

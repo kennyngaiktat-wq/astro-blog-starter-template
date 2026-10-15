@@ -2,31 +2,41 @@
 import Base from "../../layouts/Base.astro";
 import Icon from "../../components/Icon.astro";
 import ProductCard from "../../components/ProductCard.astro";
-import { CATEGORIES, baht, canBuyOnline, displayDescription, displayName, isEnquiryItem, splitTags, tagLabel, type Product } from "../../lib/catalog";
+import BuyActions from "../../components/BuyActions.astro";
+import { CATEGORIES, baht, buyInfo, displayDescription, displayName, splitTags, tagLabel, type Product } from "../../lib/catalog";
 import { all, first } from "../../lib/db";
 import { t } from "../../lib/i18n";
 
-const { lang, user, settings, env } = Astro.locals;
+const { lang, user, settings, env, checkout } = Astro.locals;
 const sku = decodeURIComponent(Astro.params.sku ?? "");
 const p = await first<Product>(env.DB, "SELECT * FROM products WHERE sku = ? AND active = 1", sku);
 if (!p) {
 	return Astro.rewrite("/404");
 }
 const cat = CATEGORIES.find((c) => c.slug === p.category);
-const buyable = canBuyOnline(p);
-const out = p.stock <= 0;
-const pct = Number(settings.member_discount_pct) || 0;
+const info = buyInfo(p, { checkout });
+const pct = checkout ? Number(settings.member_discount_pct) || 0 : 0;
 const memberPrice = Math.round(p.price_satang * (1 - pct / 100));
 const related = await all<Product>(
 	env.DB,
-	"SELECT * FROM products WHERE active = 1 AND category = ? AND id != ? ORDER BY (stock > 0) DESC, RANDOM() LIMIT 4",
+	"SELECT * FROM products WHERE active = 1 AND category = ? AND id != ? ORDER BY (image_url IS NOT NULL) DESC, (stock > 0) DESC, RANDOM() LIMIT 4",
 	p.category,
 	p.id,
 );
-const tel = `tel:${settings.phone.replace(/[^0-9+]/g, "")}`;
 const name = displayName(p, lang);
-const enquiry = isEnquiryItem(p);
 const desc = displayDescription(p, lang);
+const equipment = p.category === "medical_equipment";
+const showPrice = p.price_satang > 0 && info.action !== "consult";
+const note =
+	info.action === "consult"
+		? t(lang, "consultNote")
+		: equipment
+			? t(lang, "enquiryNote")
+			: info.action === "marketplace"
+				? t(lang, "marketplaceNote")
+				: info.action === "line"
+					? t(lang, "lineOrderNote")
+					: "";
 ---
 
 <Base title={name} description={desc || `${name} — ${cat ? cat[lang] : ""}`}>
@@ -50,9 +60,8 @@ const desc = displayDescription(p, lang);
 			<div class="pd-info">
 				<div class="pd-badges">
 					{cat && <span class="badge" style="background: var(--cs); color: var(--c)">{cat[lang]}</span>}
-					{enquiry && <span class="badge">{t(lang, "available")}</span>}
-					{!buyable && !enquiry && <span class="badge badge-consult">{t(lang, "consultBadge")}</span>}
-					{buyable && (out ? <span class="badge badge-out">{t(lang, "outOfStock")}</span> : <span class="badge">{t(lang, "inStock")}</span>)}
+					{info.action === "consult" && <span class="badge badge-consult">{t(lang, "consultBadge")}</span>}
+					{info.action !== "consult" && (info.outOfStock ? <span class="badge badge-out">{t(lang, "outOfStock")}</span> : <span class="badge">{equipment ? t(lang, "available") : t(lang, "inStock")}</span>)}
 				</div>
 				<h1>{name}</h1>
 				{lang === "en" && p.name_en && p.name !== p.name_en && <p class="muted">{p.name}</p>}
@@ -62,87 +71,32 @@ const desc = displayDescription(p, lang);
 					{p.unit && <> · {t(lang, "unit")}: {p.unit}</>}
 				</p>
 
-				{
-					buyable ? (
-						<div class="pd-buy">
-							<div class="pd-price">
-								{user && pct > 0 ? (
-									<>
-										<strong>{baht(memberPrice)}</strong>
-										<s class="muted">{baht(p.price_satang)}</s>
-										<span class="badge">{t(lang, "memberActive", { pct })}</span>
-									</>
-								) : (
-									<>
-										<strong>{baht(p.price_satang)}</strong>
-										{pct > 0 && (
-											<a class="member small" href="/account/register">
-												{t(lang, "memberPrice")} {baht(memberPrice)} — {t(lang, "register")}
-											</a>
-										)}
-									</>
-								)}
-							</div>
-							{out ? (
-								<div class="pd-actions">
-									{settings.line_url && (
-										<a class="btn btn-line" href={settings.line_url} target="_blank" rel="noopener">
-											<Icon name="chat" size={18} /> {t(lang, "askAvailability")}
+				<div class:list={["pd-buy", { consult: info.action === "consult", enquiry: equipment && info.action !== "consult" }]}>
+					<div class="pd-price">
+						{
+							!showPrice ? (
+								<strong class="po">{info.action === "consult" ? t(lang, "askPharmacist") : t(lang, "priceOnRequest")}</strong>
+							) : user && pct > 0 && info.action === "cart" ? (
+								<>
+									<strong>{baht(memberPrice)}</strong>
+									<s class="muted">{baht(p.price_satang)}</s>
+									<span class="badge">{t(lang, "memberActive", { pct })}</span>
+								</>
+							) : (
+								<>
+									<strong>{baht(p.price_satang)}</strong>
+									{pct > 0 && info.action === "cart" && (
+										<a class="member small" href="/account/register">
+											{t(lang, "memberPrice")} {baht(memberPrice)} — {t(lang, "register")}
 										</a>
 									)}
-									<a class="btn btn-ghost" href={tel}>
-										<Icon name="phone" size={18} /> {settings.phone}
-									</a>
-								</div>
-							) : (
-								<div class="pd-actions">
-									<label class="qty">
-										<span class="sr-only">{t(lang, "qty")}</span>
-										<input id="qty" type="number" min="1" max="99" value="1" inputmode="numeric" />
-									</label>
-									<button class="btn" data-add-sku={p.sku} data-qty-from="#qty" data-added-label={t(lang, "added")}>
-										<Icon name="cart" size={18} /> {t(lang, "addToCart")}
-									</button>
-									<a class="btn btn-ghost" href="/cart">
-										{t(lang, "cart")}
-									</a>
-								</div>
-							)}
-						</div>
-					) : enquiry ? (
-						<div class="consult-box enquiry">
-							{p.price_satang > 0 ? <p class="pd-price"><strong>{baht(p.price_satang)}</strong></p> : <p class="pd-price"><strong>{t(lang, "priceOnRequest")}</strong></p>}
-							<p>{t(lang, "enquiryNote")}</p>
-							<div class="pd-actions">
-								{settings.line_url && (
-									<a class="btn btn-line" href={settings.line_url} target="_blank" rel="noopener">
-										<img src="/social/line-white.svg" alt="" width="18" height="18" /> {t(lang, "orderOnLine")}
-									</a>
-								)}
-								<a class="btn btn-ghost" href={tel}>
-									<Icon name="phone" size={18} /> {settings.phone}
-								</a>
-							</div>
-						</div>
-					) : (
-						<div class="consult-box">
-							<p>{t(lang, "consultNote")}</p>
-							<div class="pd-actions">
-								{settings.line_url && (
-									<a class="btn btn-line" href={settings.line_url} target="_blank" rel="noopener">
-										<img src="/social/line-white.svg" alt="" width="18" height="18" /> {t(lang, "consultPharmacist")}
-									</a>
-								)}
-								<a class="btn btn-ghost" href={tel}>
-									<Icon name="phone" size={18} /> {settings.phone}
-								</a>
-								<a class="btn btn-ghost" href="/contact">
-									<Icon name="map" size={18} /> {t(lang, "findUs")}
-								</a>
-							</div>
-						</div>
-					)
-				}
+								</>
+							)
+						}
+					</div>
+					{note && <p class="note">{note}</p>}
+					<BuyActions product={p} size="lg" />
+				</div>
 
 				{
 					desc && (
@@ -264,6 +218,21 @@ const desc = displayDescription(p, lang);
 	.qty input {
 		width: 80px;
 		text-align: center;
+	}
+	.pd-buy.consult {
+		background: var(--accent-soft);
+		border-color: #f6d4c6;
+	}
+	.pd-buy.enquiry {
+		background: var(--brand-soft);
+		border-color: #bfe8d9;
+	}
+	.note {
+		margin: 0 0 14px;
+		font-size: 0.95rem;
+	}
+	.po {
+		font-size: 1.3rem !important;
 	}
 	.consult-box {
 		margin: 22px 0;

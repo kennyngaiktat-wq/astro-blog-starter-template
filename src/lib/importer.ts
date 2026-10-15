@@ -28,6 +28,8 @@ const HEADER_MAP: Record<string, string> = {
 	description_en: "description_en",
 	weight_g: "weight_g",
 	intl_ok: "intl_ok",
+	shopee_url: "shopee_url",
+	lazada_url: "lazada_url",
 	"ประเภทสินค้า": "pos_type",
 };
 
@@ -125,6 +127,8 @@ export async function importProducts(db: D1Database, text: string, opts: { creat
 			const w = Math.floor(Number(rec.weight_g));
 			if (Number.isFinite(w) && w >= 0) upd.weight_g = w || null;
 		}
+		if ("shopee_url" in rec) upd.shopee_url = rec.shopee_url || null;
+		if ("lazada_url" in rec) upd.lazada_url = rec.lazada_url || null;
 		if ("intl_ok" in rec) upd.intl_ok = rec.intl_ok === "" ? null : yes(rec.intl_ok) ? 1 : 0;
 
 		const cur = bySku.get(sku);
@@ -160,6 +164,8 @@ export async function importProducts(db: D1Database, text: string, opts: { creat
 				description_en: upd.description_en ?? null,
 				weight_g: upd.weight_g ?? null,
 				intl_ok: upd.intl_ok ?? null,
+				shopee_url: upd.shopee_url ?? null,
+				lazada_url: upd.lazada_url ?? null,
 			};
 			const keys = Object.keys(row);
 			stmts.push(db.prepare(`INSERT INTO products (${keys.join(",")}) VALUES (${keys.map(() => "?").join(",")})`).bind(...Object.values(row)));

@@ -3,7 +3,7 @@ import { buildProductWhere, CATEGORY_SLUGS, type Product, type ProductQuery } fr
 import { all } from "../../lib/db";
 import { toCsv } from "../../lib/csv";
 
-const COLS = ["sku", "barcode", "name", "name_en", "unit", "price", "stock", "category", "consult_required", "active", "featured", "tags", "manufacturer", "description", "description_en", "weight_g", "intl_ok", "image_url"];
+const COLS = ["sku", "barcode", "name", "name_en", "unit", "price", "stock", "category", "consult_required", "active", "featured", "tags", "manufacturer", "description", "description_en", "weight_g", "intl_ok", "shopee_url", "lazada_url", "image_url"];
 
 export const GET: APIRoute = async ({ url, locals }) => {
 	if (!locals.admin) return new Response("Unauthorized", { status: 401 });
@@ -40,6 +40,8 @@ export const GET: APIRoute = async ({ url, locals }) => {
 				p.description_en,
 				p.weight_g,
 				p.intl_ok === null ? "" : p.intl_ok ? "yes" : "no",
+				p.shopee_url,
+				p.lazada_url,
 				p.image_url,
 			]),
 		);

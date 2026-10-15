@@ -75,3 +75,12 @@ export async function imageFromPaste(e: ClipboardEvent): Promise<{ blob?: Blob; 
 	if (/^https?:\/\/\S+$/.test(text)) return { url: text };
 	return null;
 }
+
+/** Uploads an image for an article (cover or inline) and returns its URL. */
+export async function uploadMedia(blob: Blob, max = 1400): Promise<{ ok: boolean; id?: number; url?: string; error?: string }> {
+	const small = await resizeImage(blob, max, 0.85);
+	const fd = new FormData();
+	fd.append("file", small, "image.jpg");
+	const res = await fetch("/api/admin/media", { method: "POST", body: fd });
+	return res.json();
+}

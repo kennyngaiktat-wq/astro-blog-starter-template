@@ -1,7 +1,7 @@
 import { defineMiddleware } from "astro:middleware";
 import { ensureSchema } from "./lib/db";
 import { getCustomer, isAdmin } from "./lib/auth";
-import { loadSettings, DEFAULT_SETTINGS } from "./lib/settings";
+import { loadSettings, DEFAULT_SETTINGS, checkoutEnabled } from "./lib/settings";
 
 export const onRequest = defineMiddleware(async (context, next) => {
 	const path = context.url.pathname;
@@ -17,6 +17,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	context.locals.lang = langCookie === "en" ? "en" : "th";
 	context.locals.user = null;
 	context.locals.admin = false;
+	context.locals.checkout = false;
 	context.locals.settings = { ...DEFAULT_SETTINGS };
 
 	if (!env.DB) {
@@ -29,6 +30,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
 	await ensureSchema(env.DB);
 	context.locals.settings = await loadSettings(env.DB);
+	context.locals.checkout = checkoutEnabled(context.locals.settings, env);
+	// Shop-only pages are switched off when online checkout is off
+	if (!context.locals.checkout && /^\/(cart|checkout)\/?$/.test(path)) return context.redirect("/products");
+	if (!context.locals.checkout && /^\/account(\/(register|login))?\/?$/.test(path)) return context.redirect("/teleconsult");
+	if (!context.locals.checkout && /^\/api\/(checkout|pay)$/.test(path)) return Response.json({ error: "checkout_off" }, { status: 403 });
 	context.locals.user = await getCustomer(env.DB, context.cookies);
 
 	if (path.startsWith("/admin") || path.startsWith("/api/admin")) {

@@ -1,21 +1,20 @@
 ---
 import Icon from "./Icon.astro";
-import { CATEGORIES, baht, canBuyOnline, displayName, isEnquiryItem, type Product } from "../lib/catalog";
+import BuyActions from "./BuyActions.astro";
+import { CATEGORIES, baht, buyInfo, displayName, type Product } from "../lib/catalog";
 import { t } from "../lib/i18n";
 
 interface Props {
 	product: Product;
 }
 const { product: p } = Astro.props;
-const { lang, user, settings } = Astro.locals;
+const { lang, user, settings, checkout } = Astro.locals;
 const cat = CATEGORIES.find((c) => c.slug === p.category);
-const buyable = canBuyOnline(p);
-const out = p.stock <= 0;
-const pct = Number(settings.member_discount_pct) || 0;
+const info = buyInfo(p, { checkout });
+const pct = checkout ? Number(settings.member_discount_pct) || 0 : 0;
 const memberPrice = Math.round(p.price_satang * (1 - pct / 100));
 const href = `/products/${encodeURIComponent(p.sku)}`;
-const enquiry = isEnquiryItem(p);
-const line = settings.line_url;
+const showPrice = p.price_satang > 0 && info.action !== "consult";
 ---
 
 <article class="pcard" style={`--c: var(--cat-${p.category}); --cs: var(--cat-${p.category}-soft)`}>
@@ -33,50 +32,28 @@ const line = settings.line_url;
 	</a>
 	<div class="pbody">
 		<div class="pbadges">
-			{enquiry && <span class="badge">{t(lang, "available")}</span>}
-			{!buyable && !enquiry && <span class="badge badge-consult">{t(lang, "consultBadge")}</span>}
-			{buyable && out && <span class="badge badge-out">{t(lang, "outOfStock")}</span>}
+			{info.action === "consult" && <span class="badge badge-consult">{t(lang, "consultBadge")}</span>}
+			{info.action !== "consult" && info.outOfStock && <span class="badge badge-out">{t(lang, "outOfStock")}</span>}
+			{info.action !== "consult" && !info.outOfStock && p.category === "medical_equipment" && <span class="badge">{t(lang, "available")}</span>}
 		</div>
 		<h3 class="pname"><a href={href}>{displayName(p, lang)}</a></h3>
 		<div class="pfoot">
 			{
-				buyable ? (
-					user && pct > 0 ? (
-						<div class="pprice">
-							<strong>{baht(memberPrice)}</strong>
-							<s class="tiny muted">{baht(p.price_satang)}</s>
-						</div>
-					) : (
-						<div class="pprice">
-							<strong>{baht(p.price_satang)}</strong>
-							{pct > 0 && <span class="tiny member">{t(lang, "memberPrice")} {baht(memberPrice)}</span>}
-						</div>
-					)
-				) : enquiry && p.price_satang > 0 ? (
+				!showPrice ? (
+					<div class="pprice muted small">{info.action === "consult" ? t(lang, "askPharmacist") : t(lang, "priceOnRequest")}</div>
+				) : user && pct > 0 && info.action === "cart" ? (
 					<div class="pprice">
-						<strong>{baht(p.price_satang)}</strong>
+						<strong>{baht(memberPrice)}</strong>
+						<s class="tiny muted">{baht(p.price_satang)}</s>
 					</div>
 				) : (
-					<div class="pprice muted small">{enquiry ? t(lang, "priceOnRequest") : lang === "th" ? "สอบถามที่ร้าน" : "Ask in store"}</div>
+					<div class="pprice">
+						<strong>{baht(p.price_satang)}</strong>
+						{pct > 0 && info.action === "cart" && <span class="tiny member">{t(lang, "memberPrice")} {baht(memberPrice)}</span>}
+					</div>
 				)
 			}
-			{
-				buyable && !out ? (
-					<button class="btn btn-sm add" data-add-sku={p.sku} data-added-label={t(lang, "added")} aria-label={`${t(lang, "addToCart")}: ${p.name}`}>
-						<Icon name="cart" size={16} />
-						<span class="add-label">{t(lang, "addToCart")}</span>
-					</button>
-				) : !buyable && line ? (
-					<a class="btn btn-sm btn-line" href={line} target="_blank" rel="noopener" aria-label={`LINE: ${p.name}`}>
-						<img src="/social/line-white.svg" alt="" width="16" height="16" />
-						<span class="add-label">{enquiry ? t(lang, "orderOnLine") : t(lang, "consultLine")}</span>
-					</a>
-				) : (
-					<a class="btn btn-sm btn-ghost" href={href}>
-						{t(lang, "details")}
-					</a>
-				)
-			}
+			<BuyActions product={p} />
 		</div>
 	</div>
 </article>
